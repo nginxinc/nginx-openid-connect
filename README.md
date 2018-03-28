@@ -24,8 +24,9 @@ OpenID Connect integration requires NGINX Plus R15 or later to be installed. See
 
 In addition, the nginScript module is required for handling the interaction between NGINX Plus and the OpenID Connect provider (IdP). Install the nginScript module after installing NGINX Plus by running one of the following:
 
-`$ sudo apt install nginx-plus-module-njs # Debian/Ubuntu`
-`$ sudo yum install nginx-plus-module-njs # CentOS/RedHat`
+`$ sudo apt install nginx-plus-module-njs` for Debian/Ubuntu
+
+`$ sudo yum install nginx-plus-module-njs` for CentOS/RedHat
 
 The nginScript module needs to be loaded by adding the following configuration directive near the top of **nginx.conf**.
 
