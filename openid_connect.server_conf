@@ -1,0 +1,82 @@
+    location @oidc_auth {
+        # Redirect this request to the OpenID Connect identity provider login page for this server{}
+        # Using authorization code flow (nonce sent to IdP is hash of $request_id)
+        add_header Set-Cookie "auth_nonce=$request_id; HttpOnly;"; # Random value
+        add_header Set-Cookie "auth_redir=$uri; HttpOnly;";        # So we know where to come back to
+
+        # This URL should work for most OpenID Connect providers.
+        # Adjust the scope or state values as required
+        return 302 "$oidc_authz_endpoint?response_type=code&scope=openid+profile+email&client_id=$oidc_client&state=0&redirect_uri=$scheme://$host:$server_port$redir_location&nonce=$requestid_hash";
+
+        access_log /var/log/nginx/oidc_auth.log main;
+        error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
+    set $redir_location "/_codexch";
+    location = /_codexch {
+        # This is where the IdP will send the authorization code after user login
+        js_content oidc_codeExchange; # nginScript function to obtain JWT and issue cookie
+        add_header Set-Cookie "auth_token=$auth_token; HttpOnly;";
+
+        access_log /var/log/nginx/oidc_auth.log main;
+        error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
+    location = /_token {
+        # This location is called by oidc_codeExchange(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+        internal;
+        resolver          127.0.0.1; # For DNS lookup of $oidc_token_endpoint;
+        proxy_set_header  Content-Type "application/x-www-form-urlencoded";
+        proxy_set_body    "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$scheme://$host:$server_port$redir_location";
+        proxy_pass        $oidc_token_endpoint;
+        proxy_buffers     8 32k; # Increase buffers to hold a complete response
+        proxy_buffer_size 128k;
+        proxy_busy_buffers_size 128k;
+
+        access_log /var/log/nginx/oidc_auth.log main;
+        error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
+    location = /_id_token_validation {
+        # This location is called by oidc_codeExchange(). We use the auth_jwt_module
+        # to validate the OpenID Connect token response, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+        internal;
+        default_type text/plain;
+
+        # Signature validation
+        auth_jwt "" token=$arg_token;
+        auth_jwt_key_file $oidc_jwt_keyfile;
+
+        # Mandatory claims
+        if ($jwt_claim_iss = "") { return 403 "iss"; }
+        if ($jwt_claim_sub = "") { return 403 "sub"; }
+        if ($jwt_claim_exp = "") { return 403 "exp"; }
+        if ($jwt_claim_iat = "") { return 403 "iat"; }
+
+        # Audience matching
+        if ($jwt_claim_aud != $oidc_client) {
+            return 403 "aud";
+        }
+
+        # If we receive a nonce in the ID Token then we will use the auth_nonce cookie
+        # to check that the JWT can be validated as being directly related to the
+        # original request by this client. This mitigates against token replay attacks.
+        if ($jwt_claim_nonce != $nonce_hash) {
+            return 403 "nonce";
+        }
+
+        # Return 'iat' to oidc_codeExchange() for number validation
+        if ($jwt_claim_iat) {
+            return 200 $jwt_claim_iat;
+        }
+
+        # Failsafe
+        error_page 404 = @id_token_failure;
+
+        access_log /var/log/nginx/oidc_auth.log main;
+        error_log  /var/log/nginx/oidc_error.log debug;
+    }
+    location @id_token_failure { return 403 "EXCEPTION"; }
