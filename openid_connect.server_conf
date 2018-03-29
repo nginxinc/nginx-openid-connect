@@ -74,14 +74,7 @@
             return 403 "nonce";
         }
 
-        # Force processing to access phase for ID Token signature validation
-        proxy_pass $scheme://127.0.0.1:$server_port/_no_content;
+        js_content noContent; # Simple response to ensure JWT signature validation
 
-        error_log  /var/log/nginx/oidc_error.log debug;
-    }
-
-    location = /_no_content {
-        return 204;
-        access_log /var/log/nginx/oidc_auth.log main;
         error_log  /var/log/nginx/oidc_error.log debug;
     }

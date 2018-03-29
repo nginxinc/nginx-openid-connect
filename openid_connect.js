@@ -102,3 +102,9 @@ function hashClientNonce(req) {
         return "";
     }
 }
+
+function noContent(req,res) {
+    res.status = 204;
+    res.sendHeader();
+    res.finish();
+}
