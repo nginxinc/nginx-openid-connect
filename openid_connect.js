@@ -32,20 +32,14 @@ function oidc_codeExchange(req, res) {
                     // Send the ID Token to auth_jwt location for validation
                     req.subrequest("/_id_token_validation", "token=" + tokenset.id_token + "&nonce=" + req.variables.cookie_auth_nonce,
                         function(reply) {
-                            if (reply.status == 200) {
-                                var iat = Math.floor(Number(reply.body));
-                                if (String(iat) == reply.body && iat > 0) {
-                                    if (tokenset[req.variables.oidc_token_type]) {
-                                        req.log("OIDC success, sending " + req.variables.oidc_token_type);
-                                        res.status = 302;
-                                        auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
-                                        res.headers.Location = req.variables.cookie_auth_redir;
-                                    } else {
-                                        req.log("OIDC authorization code sent but no token received. " + tokenset.error + " " + tokenset.error_description);
-                                        res.status = 500;
-                                    }
+                            if (reply.status == 204) {
+                                if (tokenset[req.variables.oidc_token_type]) {
+                                    req.log("OIDC success, sending " + req.variables.oidc_token_type);
+                                    res.status = 302;
+                                    auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
+                                    res.headers.Location = req.variables.cookie_auth_redir;
                                 } else {
-                                    req.log("OIDC ID Token claim 'iat' is not a valid date");
+                                    req.log("OIDC authorization code sent but no token received. " + tokenset.error + " " + tokenset.error_description);
                                     res.status = 500;
                                 }
                             } else {
@@ -58,6 +52,9 @@ function oidc_codeExchange(req, res) {
                     );
                 } catch (e) { 
                     req.log("OIDC authorization code sent but response is not JSON. " + reply.body);
+                    //req.log("Writing response to /tmp/oidc_token_response");
+                    //var fs = require('fs');
+                    //fs.writeFileSync('/tmp/oidc_token_response', reply.body)
                     res.status = 502;
                     res.sendHeader();
                     res.finish();
