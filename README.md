@@ -46,6 +46,7 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * Modify the upstream group to match your backend site or app
     * Configure the preferred listen port and enable SSL/TLS configuration
     * Modify all of the `set $oidc_` directives to match your IdP.
+    * Set a unique value for $oidc_hmac_key to ensure unpredicatable nonce
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
     * Modify the `add_header Set-Cookie` directives with appropriate cookie flags, e.g. Domain; Path; Secure;
@@ -55,7 +56,6 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * No changes are required unless modifying the code exchange process
 
 ## TO DO
-  * Replace SHA256 hash with HMAC and use an NGINX variable as the key
   * ID Token validation of iat value
   * ID Token validation of iss value
   * Dynamic state value
