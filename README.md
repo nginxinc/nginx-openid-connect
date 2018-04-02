@@ -56,7 +56,6 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * No changes are required unless modifying the code exchange process
 
 ## TO DO
-  * ID Token validation of iat value
   * ID Token validation of iss value
   * Dynamic state value
   * Opaque session cookie
