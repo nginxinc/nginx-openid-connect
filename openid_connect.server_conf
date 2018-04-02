@@ -55,34 +55,9 @@
         # to validate the OpenID Connect token response, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
         internal;
-        default_type text/plain;
-
-        # Signature validation
         auth_jwt "" token=$arg_token;
         auth_jwt_key_file $oidc_jwt_keyfile;
-
-        # Mandatory claims
-        if ($jwt_claim_iss = "") { return 403 "iss"; }
-        if ($jwt_claim_sub = "") { return 403 "sub"; }
-        if ($jwt_claim_exp = "") { return 403 "exp"; }
-        if ($jwt_claim_iat = "") { return 403 "iat"; }
-
-        # TODO: Check iat is JSON number
-        # TODO: Check iss scheme, hostname and port match $oidc_*_endpoint
-
-        # Audience matching
-        if ($jwt_claim_aud != $oidc_client) {
-            return 403 "aud";
-        }
-
-        # If we receive a nonce in the ID Token then we will use the auth_nonce cookie
-        # to check that the JWT can be validated as being directly related to the
-        # original request by this client. This mitigates against token replay attacks.
-        if ($jwt_claim_nonce != $nonce_hash) {
-            return 403 "nonce";
-        }
-
-        js_content validateIdToken; # Simple response to ensure JWT signature validation
+        js_content validateIdToken;
 
         error_log  /var/log/nginx/oidc_error.log debug;
     }
