@@ -20,7 +20,6 @@ function oidc_codeExchange(req, res) {
 
     // Pass the authorization code to the /_token location so that it can be
     // proxied to the IdP in exchange for a JWT
-    var isValid = 0;
     req.subrequest("/_token", {"args":"code=" + req.variables.arg_code,"method":"POST"},
         function(reply) {
             if (reply.status == 200) {
@@ -32,11 +31,13 @@ function oidc_codeExchange(req, res) {
                             if (reply.status == 204) {
                                 if (tokenset[req.variables.oidc_token_type]) {
                                     req.log("OIDC success, sending " + req.variables.oidc_token_type);
-                                    res.return(302);
                                     auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
-                                    res.headers.Location = req.variables.cookie_auth_redir;
+                                    res.return(302, req.variables.cookie_auth_redir);
                                 } else {
-                                    req.error("OIDC authorization code sent but no token received. " + tokenset.error + " " + tokenset.error_description);
+                                    req.error("OIDC received id_token but not " + req.variables.oidc_token_type + " received");
+                                    if (tokenset.error) {
+                                        req.error("OIDC " + tokenset.error + " " + tokenset.error_description);
+                                    }
                                     res.return(500);
                                 }
                             } else {
@@ -45,7 +46,7 @@ function oidc_codeExchange(req, res) {
                             }
                         }
                     );
-                } catch (e) { 
+                } catch (e) {
                     req.error("OIDC authorization code sent but token response is not JSON. " + reply.body);
                     res.return(502);
                 }
@@ -63,7 +64,7 @@ function oidc_codeExchange(req, res) {
                 } catch (e) {
                     req.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.body);
                 }
-                res.return(503);
+                res.return(502);
             }
         }
     );

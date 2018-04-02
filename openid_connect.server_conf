@@ -18,8 +18,18 @@
         js_content oidc_codeExchange; # nginScript function to obtain JWT and issue cookie
         add_header Set-Cookie "auth_token=$auth_token; HttpOnly;";
 
+        # Catch errors from oidc_codeExchange()
+        # 500 = token validation error, 502 = error from IdP, 504 = IdP timeout
+        error_page 500 502 504 @oidc_error; 
+
         access_log /var/log/nginx/oidc_auth.log main;
         error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
+    location @oidc_error {
+        # This location is called when oidc_codeExchange() returns an error
+        default_type text/plain;
+        return 500 "NGINX / OpenID Connect login failure\n";
     }
 
     location = /_token {
