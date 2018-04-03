@@ -15,7 +15,7 @@
     set $redir_location "/_codexch";
     location = /_codexch {
         # This is where the IdP will send the authorization code after user login
-        js_content oidc_codeExchange; # nginScript function to obtain JWT and issue cookie
+        js_content oidcCodeExchange; # nginScript function to obtain JWT and issue cookie
         add_header Set-Cookie "auth_token=$auth_token; HttpOnly;";
 
         # Catch errors from oidc_codeExchange()
@@ -27,13 +27,13 @@
     }
 
     location @oidc_error {
-        # This location is called when oidc_codeExchange() returns an error
+        # This location is called when oidcCodeExchange() returns an error
         default_type text/plain;
         return 500 "NGINX / OpenID Connect login failure\n";
     }
 
     location = /_token {
-        # This location is called by oidc_codeExchange(). We use the proxy_ directives
+        # This location is called by oidcCodeExchange(). We use the proxy_ directives
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
@@ -41,6 +41,7 @@
         gunzip   on; # Decompress if necessary
 
         proxy_set_header  Content-Type "application/x-www-form-urlencoded";
+        proxy_method      POST;
         proxy_set_body    "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$scheme://$host:$server_port$redir_location";
         proxy_pass        $oidc_token_endpoint;
         proxy_buffers     8 32k; # Increase buffers to hold a complete response
@@ -51,7 +52,7 @@
     }
 
     location = /_id_token_validation {
-        # This location is called by oidc_codeExchange(). We use the auth_jwt_module
+        # This location is called by oidcCodeExchange(). We use the auth_jwt_module
         # to validate the OpenID Connect token response, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
         internal;

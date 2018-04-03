@@ -7,7 +7,7 @@
 
 var auth_token = "";
 
-function oidc_codeExchange(req, res) {
+function oidcCodeExchange(req, res) {
     // First check that we received an authorization code from the IdP
     if (req.variables.arg_code.length == 0) {
         if (req.variables.arg_error) {
@@ -20,7 +20,7 @@ function oidc_codeExchange(req, res) {
 
     // Pass the authorization code to the /_token location so that it can be
     // proxied to the IdP in exchange for a JWT
-    req.subrequest("/_token", {"args":"code=" + req.variables.arg_code,"method":"POST"},
+    req.subrequest("/_token", "code=" + req.variables.arg_code,
         function(reply) {
             if (reply.status == 200) {
                 try {
@@ -33,8 +33,10 @@ function oidc_codeExchange(req, res) {
                                     req.log("OIDC success, sending " + req.variables.oidc_token_type);
                                     auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
                                     res.return(302, req.variables.cookie_auth_redir);
+                                    return;
                                 } else {
                                     res.return(500);
+                                    return;
                                 }
                             }
                         );
@@ -44,14 +46,17 @@ function oidc_codeExchange(req, res) {
                             req.error("OIDC " + tokenset.error + " " + tokenset.error_description);
                         }
                         res.return(500);
+                        return;
                     }
                 } catch (e) {
                     req.error("OIDC authorization code sent but token response is not JSON. " + reply.body);
                     res.return(502);
+                    return;
                 }
             } else if (reply.status == 504) {
                 req.error("OIDC timeout connecting to IdP when sending authorization code");
                 res.return(504);
+                return;
             } else {
                 try {
                     var errorset = JSON.parse(reply.body);
@@ -64,19 +69,20 @@ function oidc_codeExchange(req, res) {
                     req.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.body);
                 }
                 res.return(502);
+                return;
             }
         }
     );
 }
 
-function get_auth_token(req,res) {
+function getAuthToken(req,res) {
     return auth_token;
 }
 
 function hashRequestId(req) {
     var c = require('crypto');
     var h = c.createHmac('sha256', req.variables.oidc_hmac_key).update(req.variables.request_id);
-    return(h.digest('base64'));
+    return h.digest('base64url');
 }
 
 function validateIdToken(req,res) {
@@ -91,25 +97,27 @@ function validateIdToken(req,res) {
     if (missing_claims.length) {
         req.error("OIDC ID Token validation error: missing claim(s) " + missing_claims.join(" "));
         res.return(403);
+        return;
     }
+    var valid_token = true;
 
     // Check iat is a number
     var iat = Math.floor(Number(req.variables.jwt_claim_iat));
     if (String(iat) != req.variables.jwt_claim_iat || iat < 1) {
         req.error("OIDC ID Token validation error: iat claim is not a valid number");
-        res.return(403);
+        valid_token = false;
     }
 
     // Check iss relates to $oidc_authz_endpoint
     if (!req.variables.oidc_authz_endpoint.startsWith(req.variables.jwt_claim_iss)) {
         req.error("OIDC ID Token validation error: iss claim (" + req.variables.jwt_claim_iss  + ") is not found in $oidc_authz_endpoint");
-        res.return(403);
+        valid_token = false;
     }
 
     // Audience matching
     if (req.variables.jwt_claim_aud != req.variables.oidc_client) {
         req.error("OIDC ID Token validation error: aud claim (" + req.variables.jwt_claim_aud + ") does not match $oidc_client");
-        res.return(403);
+        valid_token = false;
     }
 
     // If we receive a nonce in the ID Token then we will use the auth_nonce cookie
@@ -119,12 +127,17 @@ function validateIdToken(req,res) {
     if (req.variables.cookie_auth_nonce) {
         var c = require('crypto');
         var h = c.createHmac('sha256', req.variables.oidc_hmac_key).update(req.variables.cookie_auth_nonce);
-        client_nonce_hash = h.digest('base64');
+        client_nonce_hash = h.digest('base64url');
     }
     if (req.variables.jwt_claim_nonce != client_nonce_hash) {
         req.error("OIDC ID Token validation error: nonce mismatch");
-        res.return(403);
+        valid_token = false;
     }
 
-    res.return(204); // ID Token validation successful
+    if (valid_token) {
+        res.return(204);
+    } else {
+        res.return(403);
+    }
+    return;
 }
