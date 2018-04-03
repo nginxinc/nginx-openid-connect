@@ -16,6 +16,7 @@ function oidcCodeExchange(req, res) {
             req.error("OIDC expected authorization code from IdP but received: " + req.variables.uri);
         }
         res.return(502);
+        return;
     }
 
     // Pass the authorization code to the /_token location so that it can be
