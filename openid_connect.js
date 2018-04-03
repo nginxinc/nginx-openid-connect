@@ -48,7 +48,7 @@ function oidcCodeExchange(req, res) {
             try {
                 var tokenset = JSON.parse(reply.body);
                 if (!tokenset[req.variables.oidc_token_type]) {
-                    req.error("OIDC received id_token but not " + req.variables.oidc_token_type + " received");
+                    req.error("OIDC received id_token but not " + req.variables.oidc_token_type);
                     if (tokenset.error) {
                         req.error("OIDC " + tokenset.error + " " + tokenset.error_description);
                     }
@@ -144,5 +144,4 @@ function validateIdToken(req,res) {
     } else {
         res.return(403);
     }
-    return;
 }
