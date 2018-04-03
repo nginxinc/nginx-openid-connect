@@ -57,3 +57,8 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
 
   * **openid_connect.js** - this is the nginScript code for performing the authorization code exchange and nonce hashing
     * No changes are required unless modifying the code exchange process
+
+## TO DO
+  * Dynamic state value
+  * Opaque session cookie
+  * UserInfo implementation
