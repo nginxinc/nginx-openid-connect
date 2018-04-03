@@ -23,42 +23,13 @@ function oidcCodeExchange(req, res) {
     // proxied to the IdP in exchange for a JWT
     req.subrequest("/_token", "code=" + req.variables.arg_code,
         function(reply) {
-            if (reply.status == 200) {
-                try {
-                    var tokenset = JSON.parse(reply.body);
-                    if (tokenset[req.variables.oidc_token_type]) {
-                        // Send the ID Token to auth_jwt location for validation
-                        req.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
-                            function(reply) {
-                                if (reply.status == 204) {
-                                    req.log("OIDC success, sending " + req.variables.oidc_token_type);
-                                    auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
-                                    res.return(302, req.variables.cookie_auth_redir);
-                                    return;
-                                } else {
-                                    res.return(500);
-                                    return;
-                                }
-                            }
-                        );
-                    } else {
-                        req.error("OIDC received id_token but not " + req.variables.oidc_token_type + " received");
-                        if (tokenset.error) {
-                            req.error("OIDC " + tokenset.error + " " + tokenset.error_description);
-                        }
-                        res.return(500);
-                        return;
-                    }
-                } catch (e) {
-                    req.error("OIDC authorization code sent but token response is not JSON. " + reply.body);
-                    res.return(502);
-                    return;
-                }
-            } else if (reply.status == 504) {
+            if (reply.status == 504) {
                 req.error("OIDC timeout connecting to IdP when sending authorization code");
                 res.return(504);
                 return;
-            } else {
+            }
+
+            if (reply.status != 200) {
                 try {
                     var errorset = JSON.parse(reply.body);
                     if (errorset.error) {
@@ -69,6 +40,39 @@ function oidcCodeExchange(req, res) {
                 } catch (e) {
                     req.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.body);
                 }
+                res.return(502);
+                return;
+            }
+
+            // Code exchange returned 200, check response
+            try {
+                var tokenset = JSON.parse(reply.body);
+                if (!tokenset[req.variables.oidc_token_type]) {
+                    req.error("OIDC received id_token but not " + req.variables.oidc_token_type + " received");
+                    if (tokenset.error) {
+                        req.error("OIDC " + tokenset.error + " " + tokenset.error_description);
+                    }
+                    res.return(500);
+                    return;
+                }
+
+                // Send the ID Token to auth_jwt location for validation
+                req.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
+                    function(reply) {
+                        if (reply.status != 204) {
+                            res.return(500); // 
+                            return;
+                        }
+
+                        // ID Token is valid
+                        req.log("OIDC success, sending " + req.variables.oidc_token_type);
+                        auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
+                        res.return(302, req.variables.cookie_auth_redir);
+                        return;
+                   }
+                );
+            } catch (e) {
+                req.error("OIDC authorization code sent but token response is not JSON. " + reply.body);
                 res.return(502);
                 return;
             }
