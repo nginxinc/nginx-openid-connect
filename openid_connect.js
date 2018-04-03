@@ -100,11 +100,15 @@ function validateIdToken(req,res) {
         res.return(403);
     }
 
-    // TODO: Check iss is substring of IdP root URL
+    // Check iss relates to $oidc_authz_endpoint
+    if (!req.variables.oidc_authz_endpoint.startsWith(req.variables.jwt_claim_iss)) {
+        req.error("OIDC ID Token validation error: iss claim (" + req.variables.jwt_claim_iss  + ") is not found in $oidc_authz_endpoint");
+        res.return(403);
+    }
 
     // Audience matching
     if (req.variables.jwt_claim_aud != req.variables.oidc_client) {
-        req.error("OIDC ID Token validation error: aud claim does not match $oidc_client");
+        req.error("OIDC ID Token validation error: aud claim (" + req.variables.jwt_claim_aud + ") does not match $oidc_client");
         res.return(403);
     }
 
