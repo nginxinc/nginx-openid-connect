@@ -68,13 +68,11 @@ function oidcCodeExchange(req, res) {
                         req.log("OIDC success, sending " + req.variables.oidc_token_type);
                         auth_token = tokenset[req.variables.oidc_token_type]; // Export as NGINX variable
                         res.return(302, req.variables.cookie_auth_redir);
-                        return;
                    }
                 );
             } catch (e) {
                 req.error("OIDC authorization code sent but token response is not JSON. " + reply.body);
                 res.return(502);
-                return;
             }
         }
     );
