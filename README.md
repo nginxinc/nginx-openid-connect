@@ -4,11 +4,14 @@ Reference implementation of NGINX Plus as relying party for OpenID Connect authe
 
 ## Description
 
-Implements OpenID Connect 1.0 authorization code flow with NGINX Plus as the relying party for confidential clients.
+This repository shows how to configure NGINX Plus for OpenID Connect such that it implements the authorization code flow. The integration uses NGINX Plus as the relying party for confidential clients.
 
-`[diagram of components (client, IdP, NGINX Plus, backend)]`
+<img src=https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authorization-code-flow-NGINX-800x426-03.svg alt="OpenID Connect components" width=500>
 
-`[OIDC protocol diagram]`
+`Figure 1. High level components of an OpenID Connect environment`
+
+![OpenID Connect protocol diagram](https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authentication-code-flow-detailed-800x840-03.svg)
+`Figure 2. OpenID Connect authorization code flow protocol`
 
 NGINX Plus is configured to perform OpenID Connect authentication. Upon a first visit to a protected resource, NGINX Plus initiates the OpenID Connect authorization code flow and redirects the client to the OpenID Connect provider (IdP). When the client returns to NGINX Plus with an authorization code, NGINX Plus exchanges that code for a set of tokens by communicating directly with the IdP.
 
@@ -56,7 +59,6 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * No changes are required unless modifying the code exchange process
 
 ## TO DO
-  * ID Token validation of iss value
   * Dynamic state value
   * Opaque session cookie
   * UserInfo implementation
