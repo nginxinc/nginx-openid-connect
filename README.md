@@ -4,11 +4,20 @@ Reference implementation of NGINX Plus as relying party for OpenID Connect authe
 
 ## Description
 
-This repository shows how to configure NGINX Plus for OpenID Connect such that it implements the authorization code flow. The integration uses NGINX Plus as the relying party for confidential clients.
+This repository describes how to enable OpenID Connect integration for [NGINX Plus](https://www.nginx.com/products/nginx/). The solution depends on the [auth_jwt](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html) module and as such is not suitable for [open source NGINX](http://www.nginx.org/en).
 
 <img src=https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authorization-code-flow-NGINX-800x426-03.svg alt="OpenID Connect components" width=500>
 
 `Figure 1. High level components of an OpenID Connect environment`
+
+This implementation assumes the following environment:
+
+  * The identity provider (IdP) supports OpenID Connect 1.0
+  * The authorization code flow is in use
+  * NGINX Plus is configured as a relying party
+  * The IdP knows NGINX Plus as a condifential client
+
+With this environment, both the client and NGINX Plus communicate directly with the IdP at different stages during the initial authentication event.
 
 ![OpenID Connect protocol diagram](https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authentication-code-flow-detailed-800x840-03.svg)
 `Figure 2. OpenID Connect authorization code flow protocol`
@@ -49,7 +58,7 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * Modify the upstream group to match your backend site or app
     * Configure the preferred listen port and enable SSL/TLS configuration
     * Modify all of the `set $oidc_` directives to match your IdP.
-    * Set a unique value for $oidc_hmac_key to ensure unpredicatable nonce
+    * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
     * Modify the `add_header Set-Cookie` directives with appropriate cookie flags, e.g. Domain; Path; Secure;
@@ -57,3 +66,13 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
 
   * **openid_connect.js** - this is the nginScript code for performing the authorization code exchange and nonce hashing
     * No changes are required unless modifying the code exchange process
+
+## Support
+
+The reference OpenID Connect implementation at the root of the GitHub repository is supported for NGINX Plus subscribers.
+
+## Other use cases
+
+Subdirectories within the GitHub repository contain sample implementations for alternative OpenID Connect use cases. These are not supported.
+
+  * **opaque-session-token** - proof of concept implementation that sends a random string to the client rather than the JWT
