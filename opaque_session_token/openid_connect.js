@@ -106,7 +106,7 @@ function validateIdToken(req,res) {
     }
     var valid_token = true;
 
-    // Check iat is a number
+    // Check iat is a positive integer
     var iat = Math.floor(Number(req.variables.jwt_claim_iat));
     if (String(iat) != req.variables.jwt_claim_iat || iat < 1) {
         req.error("OIDC ID Token validation error: iat claim is not a valid number");
