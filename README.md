@@ -75,4 +75,4 @@ The reference OpenID Connect implementation at the root of the GitHub repository
 
 Subdirectories within the GitHub repository contain sample implementations for alternative OpenID Connect use cases. These are not supported.
 
-  * **opaque-session-token** - proof of concept implementation that sends a random string to the client rather than the JWT
+  * **opaque_session_token** - proof of concept implementation that sends a random string to the client rather than the JWT
