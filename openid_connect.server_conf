@@ -62,3 +62,5 @@
 
         error_log  /var/log/nginx/oidc_error.log debug;
     }
+
+    # vim: syntax=nginx
