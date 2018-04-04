@@ -54,7 +54,7 @@
     }
 
     location = /_id_token_validation {
-        # This location is called by oidc_codeExchange(). We use the auth_jwt_module
+        # This location is called by oidcCodeExchange(). We use the auth_jwt_module
         # to validate the OpenID Connect token response, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
         internal;
@@ -77,3 +77,5 @@
         allow 127.0.0.1;
         deny all;
     }
+
+    # vim: syntax=nginx
