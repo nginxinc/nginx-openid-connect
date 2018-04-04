@@ -60,7 +60,7 @@ function oidcCodeExchange(req, res) {
                 req.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
                     function(reply) {
                         if (reply.status != 204) {
-                            res.return(500); // 
+                            res.return(500); // validateIdToken() will log errors
                             return;
                         }
 
