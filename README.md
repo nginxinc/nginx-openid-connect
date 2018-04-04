@@ -42,7 +42,9 @@ In addition, the nginScript module is required for handling the interaction betw
 
 The nginScript module needs to be loaded by adding the following configuration directive near the top of **nginx.conf**.
 
-<pre>load_module modules/ngx_http_js_module.so;</pre>
+```nginx
+load_module modules/ngx_http_js_module.so;
+```
 
 Finally, create a clone of the GitHub repository.
 
