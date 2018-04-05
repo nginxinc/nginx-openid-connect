@@ -52,14 +52,26 @@ Finally, create a clone of the GitHub repository.
 
 All files can be copied to **/etc/nginx/conf.d**
 
-## Configuring NGINX Plus as a Relying Party
+## Configuring your IdP
+
+  * Create an OpenID Connect client to represent your NGINX Plus instance
+    * Choose the authorization code flow
+    * Set the `redirect URI` to address of your NGINX Plus instance, with `/_codexch` as the path
+    * Ensure NGINX Plus is configured as a confidential client (with a clent secret)
+    * Make a note of the `client ID` and `client secret`
+    
+  * Obtain the URL for the **authorization endpoint**
+  
+  * Obtain the URL for the **token endpoint**
+
+## Configuring NGINX Plus
 
 The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. Some configuration is required:
 
   * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured
     * Modify the upstream group to match your backend site or app
     * Configure the preferred listen port and enable SSL/TLS configuration
-    * Modify all of the `set $oidc_` directives to match your IdP.
+    * Modify all of the `set $oidc_` directives to match your IdP configuration
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
