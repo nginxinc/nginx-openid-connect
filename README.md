@@ -56,7 +56,7 @@ All files can be copied to **/etc/nginx/conf.d**
 
   * Create an OpenID Connect client to represent your NGINX Plus instance
     * Choose the authorization code flow
-    * Set the `redirect URI` to address of your NGINX Plus instance, with `/_codexch` as the path
+    * Set the **redirect URI** to the address of your NGINX Plus instance, with `/_codexch` as the path, e.g. `https://my-nginx.example.com/_codexch`
     * Ensure NGINX Plus is configured as a confidential client (with a clent secret)
     * Make a note of the `client ID` and `client secret`
     
@@ -70,12 +70,12 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
 
   * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured
     * Modify the upstream group to match your backend site or app
-    * Configure the preferred listen port and enable SSL/TLS configuration
+    * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
     * Modify all of the `set $oidc_` directives to match your IdP configuration
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
-    * Modify the `add_header Set-Cookie` directives with appropriate cookie flags, e.g. Domain; Path; Secure;
+    * Modify the `add_header Set-Cookie` directives with appropriate [cookie flags](https://en.wikipedia.org/wiki/HTTP_cookie#Terminology), e.g. Domain; Path; Secure;
     * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
 
   * **openid_connect.js** - this is the nginScript code for performing the authorization code exchange and nonce hashing
