@@ -34,13 +34,13 @@ For more information on OIDC and NGINX Plus JWT support, see [Authenticating Use
 
 OpenID Connect integration requires NGINX Plus R15 or later to be installed. See [Installing NGINX Plus](https://docs.nginx.com/nginx/admin-guide/installing-nginx/installing-nginx-plus/).
 
-In addition, the nginScript module is required for handling the interaction between NGINX Plus and the OpenID Connect provider (IdP). Install the nginScript module after installing NGINX Plus by running one of the following:
+In addition, the [njs module](https://www.nginx.com/blog/introduction-nginscript/) is required for handling the interaction between NGINX Plus and the OpenID Connect provider (IdP). Install the njs module after installing NGINX Plus by running one of the following:
 
 `$ sudo apt install nginx-plus-module-njs` for Debian/Ubuntu
 
 `$ sudo yum install nginx-plus-module-njs` for CentOS/RedHat
 
-The nginScript module needs to be loaded by adding the following configuration directive near the top of **nginx.conf**.
+The njs module needs to be loaded by adding the following configuration directive near the top of **nginx.conf**.
 
 ```nginx
 load_module modules/ngx_http_js_module.so;
@@ -51,6 +51,10 @@ Finally, create a clone of the GitHub repository.
 `$ git clone https://github.com/nginxinc/nginx-openid-connect`
 
 All files can be copied to **/etc/nginx/conf.d**
+
+> **N.B.** The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. These files are referenced with a relative path (relative to /etc/nginx). If NGINX Plus is running from a non-standard location then copy the files from the GitHub repository to `/path/to/conf/conf.d` and use the `-p` flag to start NGINX with a prefix path that specifies the location where the configuration files are located.
+>
+> `nginx -p /path/to/conf -c /path/to/conf/nginx.conf`
 
 ## Configuring your IdP
 
@@ -66,7 +70,7 @@ All files can be copied to **/etc/nginx/conf.d**
 
 ## Configuring NGINX Plus
 
-The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. Some configuration is required:
+Review the following files copied from the GitHub repository so that they match your IdP configuration.
 
   * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured
     * Modify the upstream group to match your backend site or app
@@ -75,11 +79,11 @@ The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_modul
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
-    * Modify the `add_header Set-Cookie` directives with appropriate [cookie flags](https://en.wikipedia.org/wiki/HTTP_cookie#Terminology), e.g. Domain; Path; Secure;
+    * Modify the `add_header Set-Cookie` directives with appropriate [cookie flags](https://en.wikipedia.org/wiki/HTTP_cookie#Terminology) to control the scope of single sign-on and security options, e.g. Domain; Path; Secure;
     * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
 
-  * **openid_connect.js** - this is the nginScript code for performing the authorization code exchange and nonce hashing
-    * No changes are required unless modifying the code exchange process
+  * **openid_connect.js** - this is the JavaScript code for performing the authorization code exchange and nonce hashing
+    * No changes are required unless modifying the code exchange or validation process
 
 ## Support
 
