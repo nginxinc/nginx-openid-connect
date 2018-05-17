@@ -59,9 +59,9 @@ All files can be copied to **/etc/nginx/conf.d**
 ## Configuring your IdP
 
   * Create an OpenID Connect client to represent your NGINX Plus instance
-    * Choose the authorization code flow
+    * Choose the **authorization code flow**
     * Set the **redirect URI** to the address of your NGINX Plus instance, with `/_codexch` as the path, e.g. `https://my-nginx.example.com/_codexch`
-    * Ensure NGINX Plus is configured as a confidential client (with a clent secret)
+    * Ensure NGINX Plus is configured as a confidential client (with a client secret)
     * Make a note of the `client ID` and `client secret`
     
   * Obtain the URL for the **authorization endpoint**
