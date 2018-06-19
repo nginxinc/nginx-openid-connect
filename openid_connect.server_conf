@@ -1,8 +1,8 @@
     location @oidc_auth {
         # Redirect this request to the OpenID Connect identity provider login page for this server{}
         # Using authorization code flow (nonce sent to IdP is hash of $request_id)
-        add_header Set-Cookie "auth_nonce=$request_id; HttpOnly;";  # Random value
-        add_header Set-Cookie "auth_redir=$uri; Path=/; HttpOnly;"; # So we know where to come back to
+        add_header Set-Cookie "auth_nonce=$request_id; Path=/; HttpOnly;";  # Random value
+        add_header Set-Cookie "auth_redir=$uri; Path=/; HttpOnly;";         # So we know where to come back to
 
         # This URL should work for most OpenID Connect providers.
         # Adjust the scope or state values as required
