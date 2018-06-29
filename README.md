@@ -63,6 +63,7 @@ All files can be copied to **/etc/nginx/conf.d**
     * Set the **redirect URI** to the address of your NGINX Plus instance, with `/_codexch` as the path, e.g. `https://my-nginx.example.com/_codexch`
     * Ensure NGINX Plus is configured as a confidential client (with a client secret)
     * Make a note of the `client ID` and `client secret`
+    * Download the `jwks_uri` JWK file to your NGINX Plus instance
     
   * Obtain the URL for the **authorization endpoint**
   
@@ -75,6 +76,7 @@ Review the following files copied from the GitHub repository so that they match 
   * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured
     * Modify the upstream group to match your backend site or app
     * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
+    * Set the value of `$oidc_jwt_keyfile` to match the downloaded JWK file from the IdP and ensure that it is readable by the NGINX worker processes
     * Modify all of the `set $oidc_` directives to match your IdP configuration
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
