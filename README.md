@@ -89,10 +89,10 @@ Review the following files copied from the GitHub repository so that they match 
 
 ## Support
 
-The reference OpenID Connect implementation at the root of the GitHub repository is supported for NGINX Plus subscribers.
+All reference OpenID Connect implementations within the GitHub repository are supported for NGINX Plus subscribers.
 
 ## Other use cases
 
-Subdirectories within the GitHub repository contain sample implementations for alternative OpenID Connect use cases. These are not supported.
+Subdirectories within the GitHub repository contain variations of the reference implementation for alternative OpenID Connect use cases.
 
-  * **opaque_session_token** - proof of concept implementation that sends a random string to the client rather than the JWT
+  * **opaque_session_token** - Uses the NGINX Plus key-value store to hold the ID Token, sending a random string to the client as the session token. The session token is then exchanged for the ID Token on each request. This use case is valuable when the ID Token contains sensitive information that should not reach the client.

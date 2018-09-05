@@ -72,9 +72,9 @@
         proxy_pass     http://127.0.0.1:$server_port/api/3/http/keyvals/sessions;
     } 
 
-    location /api {
+    location /api/ {
         api write=on;
-        allow 127.0.0.1;
+        allow 127.0.0.1; # Only the NGINX host may call the NIGNX Plus API
         deny all;
     }
 
