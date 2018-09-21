@@ -60,7 +60,7 @@ All files can be copied to **/etc/nginx/conf.d**
 
   * Create an OpenID Connect client to represent your NGINX Plus instance
     * Choose the **authorization code flow**
-    * Set the **redirect URI** to the address of your NGINX Plus instance, with `/_codexch` as the path, e.g. `https://my-nginx.example.com/_codexch`
+    * Set the **redirect URI** to the address of your NGINX Plus instance (including the port number), with `/_codexch` as the path, e.g. `https://my-nginx.example.com:443/_codexch`
     * Ensure NGINX Plus is configured as a confidential client (with a client secret)
     * Make a note of the `client ID` and `client secret`
     * Download the `jwks_uri` JWK file to your NGINX Plus instance
