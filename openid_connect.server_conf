@@ -37,16 +37,12 @@
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
-        resolver 127.0.0.1; # For DNS lookup of $oidc_token_endpoint;
         gunzip   on; # Decompress if necessary
 
         proxy_set_header  Content-Type "application/x-www-form-urlencoded";
         proxy_method      POST;
         proxy_set_body    "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$scheme://$host:$server_port$redir_location";
         proxy_pass        $oidc_token_endpoint;
-        proxy_buffers     8 32k; # Increase buffers to hold a complete response
-        proxy_buffer_size 128k;
-        proxy_busy_buffers_size 128k;
 
         error_log  /var/log/nginx/oidc_error.log debug;
     }
