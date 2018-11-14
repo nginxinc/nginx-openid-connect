@@ -69,7 +69,7 @@
         internal;
         proxy_method   POST;
         proxy_set_body '{"$arg_key":"$arg_val"}';
-        proxy_pass     http://127.0.0.1:$server_port/api/3/http/keyvals/sessions;
+        proxy_pass     $scheme://127.0.0.1:$server_port/api/3/http/keyvals/sessions;
     } 
 
     location /api/ {
