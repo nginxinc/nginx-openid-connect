@@ -64,7 +64,7 @@ All files can be copied to **/etc/nginx/conf.d**
     * Ensure NGINX Plus is configured as a confidential client (with a client secret)
     * Make a note of the `client ID` and `client secret`
 
-  * If your IdP supports OpenID Connect Discovery (usually at the URI `/.well-known-openid-configuration`) then use the `configure.sh` script to complete configuration. In this case you can skip the **frontend.conf** configuration. Otherwise:
+  * If your IdP supports OpenID Connect Discovery (usually at the URI `/.well-known/openid-configuration`) then use the `configure.sh` script to complete configuration. In this case you can skip the **frontend.conf** configuration. Otherwise:
     * Download the `jwks_uri` JWK file to your NGINX Plus instance
     * Obtain the URL for the **authorization endpoint**
     * Obtain the URL for the **token endpoint**
