@@ -5,17 +5,17 @@ COMMAND=${0##*/}
 CONFDIR=${0%/*}
 if [ $# -lt 1 ]; then
 	echo "USAGE: $COMMAND [options] <OpenID Connect confinguration URL>"
-        echo ""
-        echo "Configures NGINX Plus OpenID Connect reference implementation by using the IdP's Discovery interface"
-        echo ""
-        echo " URL typically ends with '/openid-configuration'"
-        echo " Options:"
-        echo " -k | --auth_jwt_key <file|request>  # Use auth_jwt_key_file (default) or auth_jwt_key_request (R17+)"
-        echo " -i | --client_id <id>               # Client ID as obtained from OpenID Connect Provider"
-        echo " -s | --client_secret <secret>       # Client secret as obtained from OpenID Connect Provider"
+	echo ""
+	echo "Configures NGINX Plus OpenID Connect reference implementation by using the IdP's Discovery interface"
+	echo ""
+	echo " URL typically ends with '/openid-configuration'"
+	echo " Options:"
+	echo " -k | --auth_jwt_key <file|request>  # Use auth_jwt_key_file (default) or auth_jwt_key_request (R17+)"
+	echo " -i | --client_id <id>               # Client ID as obtained from OpenID Connect Provider"
+	echo " -s | --client_secret <secret>       # Client secret as obtained from OpenID Connect Provider"
 	echo " -x | --insecure                     # Do not verify IdP's SSL certificate"
 	echo " -d | --dry_run                      # Produce configuration to stdout without modifying frontend.conf"
-        echo ""
+	echo ""
 	exit 1
 fi
 
