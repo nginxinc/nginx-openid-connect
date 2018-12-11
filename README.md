@@ -63,26 +63,28 @@ All files can be copied to **/etc/nginx/conf.d**
     * Set the **redirect URI** to the address of your NGINX Plus instance (including the port number), with `/_codexch` as the path, e.g. `https://my-nginx.example.com:443/_codexch`
     * Ensure NGINX Plus is configured as a confidential client (with a client secret)
     * Make a note of the `client ID` and `client secret`
+
+  * If your IdP supports OpenID Connect Discovery (usually at the URI `/.well-known-openid-configuration`) then use the `configure.sh` script to complete configuration. In this case you can skip the **frontend.conf** configuration. Otherwise:
     * Download the `jwks_uri` JWK file to your NGINX Plus instance
-    
-  * Obtain the URL for the **authorization endpoint**
-  
-  * Obtain the URL for the **token endpoint**
+    * Obtain the URL for the **authorization endpoint**
+    * Obtain the URL for the **token endpoint**
 
 ## Configuring NGINX Plus
 
 Review the following files copied from the GitHub repository so that they match your IdP configuration.
 
-  * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured
+  * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured. This file can be automatically configured by using the `configure.sh` script.
     * Modify the upstream group to match your backend site or app
+    * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
     * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
     * Set the value of `$oidc_jwt_keyfile` to match the downloaded JWK file from the IdP and ensure that it is readable by the NGINX worker processes
     * Modify all of the `set $oidc_` directives to match your IdP configuration
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
+    * No changes are usually required here
+    * If using [`auth_jwt_key_request`](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html#auth_jwt_key_request) to automatically fetch the JWK file from the IdP then modify the validity period and other caching options to suit your IdP
     * Modify the `add_header Set-Cookie` directives with appropriate [cookie flags](https://en.wikipedia.org/wiki/HTTP_cookie#Terminology) to control the scope of single sign-on and security options, e.g. Domain; Path; Secure;
-    * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
 
   * **openid_connect.js** - this is the JavaScript code for performing the authorization code exchange and nonce hashing
     * No changes are required unless modifying the code exchange or validation process

@@ -1,3 +1,20 @@
+    location = /_jwks_uri {
+	# This is where the JSON Web Key Set is fetched from the IdP and cached
+        internal;
+        proxy_cache jwk;
+        proxy_pass $oidc_jwt_keyfile;
+
+        # This configuration ignores all response headers that influence caching,
+        # and instead sets a fixed validity period before the JWK is re-fetched.
+        # See http://nginx.org/r/proxy_cache for all configuration options
+        proxy_cache_valid 200 12h;
+        proxy_cache_lock on;
+        proxy_cache_use_stale error timeout updating;
+        proxy_ignore_headers Cache-Control;
+        proxy_ignore_headers Expires;
+        proxy_ignore_headers Set-Cookie;
+    }
+
     location @oidc_auth {
         # Redirect this request to the OpenID Connect identity provider login page for this server{}
         # Using authorization code flow (nonce sent to IdP is hash of $request_id)
@@ -53,7 +70,6 @@
         #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
         internal;
         auth_jwt "" token=$arg_token;
-        auth_jwt_key_file $oidc_jwt_keyfile;
         js_content validateIdToken;
 
         error_log  /var/log/nginx/oidc_error.log debug;
