@@ -40,7 +40,7 @@ To query the current sessions in the key-value store:
 
 To delete a single session:
 
-`$ curl -iX PATCH '{"<session ID>":null}' localhost:8010/api/3/http/keyvals/sessions`
+`$ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/3/http/keyvals/sessions`
 
 To delete all sessions:
 
