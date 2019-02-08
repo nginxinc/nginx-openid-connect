@@ -1,3 +1,18 @@
+    location = /_jwks_uri {
+        # This is where the JSON Web Key Set is fetched from the IdP and cached
+        internal;
+        proxy_cache jwk;
+        proxy_pass $oidc_jwt_keyfile;
+
+        # This configuration ignores all response headers that influence caching,
+        # and instead sets a fixed validity period before the JWK is re-fetched.
+        # See http://nginx.org/r/proxy_cache for all configuration options
+        proxy_cache_valid 200 12h;
+        proxy_cache_lock on;
+        proxy_cache_use_stale error timeout updating;
+        proxy_ignore_headers Cache-Control Expires Set-Cookie;
+    }
+
     location @oidc_auth {
         # TODO: if $auth_token then delete the expired/invalid entry from keyval
 
@@ -39,7 +54,6 @@
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
-        resolver 127.0.0.1; # For DNS lookup of $oidc_token_endpoint;
         gunzip   on; # Decompress if necessary
 
         proxy_set_header  Content-Type "application/x-www-form-urlencoded";

@@ -1,5 +1,5 @@
     location = /_jwks_uri {
-	# This is where the JSON Web Key Set is fetched from the IdP and cached
+        # This is where the JSON Web Key Set is fetched from the IdP and cached
         internal;
         proxy_cache jwk;
         proxy_pass $oidc_jwt_keyfile;
@@ -10,9 +10,7 @@
         proxy_cache_valid 200 12h;
         proxy_cache_lock on;
         proxy_cache_use_stale error timeout updating;
-        proxy_ignore_headers Cache-Control;
-        proxy_ignore_headers Expires;
-        proxy_ignore_headers Set-Cookie;
+        proxy_ignore_headers Cache-Control Expires Set-Cookie;
     }
 
     location @oidc_auth {
@@ -35,7 +33,7 @@
         js_content oidcCodeExchange; # nginScript function to obtain JWT and issue cookie
         add_header Set-Cookie "auth_token=$auth_token; HttpOnly;";
 
-        # Catch errors from oidc_codeExchange()
+        # Catch errors from oidcCodeExchange()
         # 500 = token validation error, 502 = error from IdP, 504 = IdP timeout
         error_page 500 502 504 @oidc_error; 
 
