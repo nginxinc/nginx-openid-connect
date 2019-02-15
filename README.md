@@ -15,7 +15,7 @@ This implementation assumes the following environment:
   * The identity provider (IdP) supports OpenID Connect 1.0
   * The authorization code flow is in use
   * NGINX Plus is configured as a relying party
-  * The IdP knows NGINX Plus as a condifential client
+  * The IdP knows NGINX Plus as a confidential client
 
 With this environment, both the client and NGINX Plus communicate directly with the IdP at different stages during the initial authentication event.
 
