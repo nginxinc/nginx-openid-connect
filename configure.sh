@@ -119,6 +119,7 @@ if [ $? -ne 0 ] || [ ! -s $CONFDIR/idp_jwk.json ]; then
 	cat $CONFDIR/idp_jwk.json
 	exit 1
 fi
+echo "\$oidc_jwt_keyfile conf.d/idp_jwk.json" >> /tmp/${COMMAND}_$$_conf
 
 # Build the sed(1) command file (requires a lot of escaping)
 #
