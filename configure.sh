@@ -10,7 +10,6 @@ if [ $# -lt 1 ]; then
 	echo ""
 	echo " URL typically ends with '/openid-configuration'"
 	echo " Options:"
-	echo " -k | --auth_jwt_key <file|request>  # Use auth_jwt_key_file (default) or auth_jwt_key_request (R17+)"
 	echo " -i | --client_id <id>               # Client ID as obtained from OpenID Connect Provider"
 	echo " -s | --client_secret <secret>       # Client secret as obtained from OpenID Connect Provider"
 	echo " -x | --insecure                     # Do not verify IdP's SSL certificate"
@@ -21,21 +20,11 @@ fi
 
 # Process command line options
 #
-DO_JWKS_URI=0
 CLIENT_ID=""
 CLIENT_SECRET=""
 SED_OPT="-i.ORIG "
 while [ $# -gt 1 ]; do
 	case "$1" in
-		"-k" | "--auth_jwt_key")
-			if [ "$2" == "request" ]; then
-				DO_JWKS_URI=1
-			elif [ "$2" != "file" ]; then
-				echo "$COMMAND: ERROR: Valid arguments to $1 are 'file' or 'request'"
-				exit 1
-			fi
-			shift; shift
-			;;
 		"-i" | "--client_id" | "--client-id")
 			CLIENT_ID=$2
 			shift; shift
@@ -123,21 +112,12 @@ fi
 # NB: auth_jwt_key_request requires NGINX Plus R17 or later
 #
 JWKS_URI=`jq -r .jwks_uri < /tmp/${COMMAND}_$$_json`
-if [ $DO_JWKS_URI -eq 0 ]; then
-	echo "$COMMAND: NOTICE: Downloading $CONFDIR/idp_jwk.json"
-	$GET_URL $JWKS_URI > $CONFDIR/idp_jwk.json
-	if [ $? -ne 0 ] || [ ! -s $CONFDIR/idp_jwk.json ]; then
-		echo "$COMMAND: ERROR: Failed to download from $JWKS_URI"
-		cat $CONFDIR/idp_jwk.json
-		exit 1
-	fi
-	echo "\$oidc_jwt_keyfile conf.d/idp_jwk.json" >> /tmp/${COMMAND}_$$_conf
-	echo "s/#\(auth_jwt_key_file\)/\1/" > /tmp/${COMMAND}_$$_sed # Uncomment
-	echo "s/ \(auth_jwt_key_request\)/ #\1/" >> /tmp/${COMMAND}_$$_sed # Comment-out
-else
-	echo "\$oidc_jwt_keyfile $JWKS_URI" >> /tmp/${COMMAND}_$$_conf
-	echo "s/ \(auth_jwt_key_file\)/ #\1/" > /tmp/${COMMAND}_$$_sed # Comment-out
-	echo "s/#\(auth_jwt_key_request\)/\1/" >> /tmp/${COMMAND}_$$_sed # Uncomment
+echo "$COMMAND: NOTICE: Downloading $CONFDIR/idp_jwk.json"
+$GET_URL $JWKS_URI > $CONFDIR/idp_jwk.json
+if [ $? -ne 0 ] || [ ! -s $CONFDIR/idp_jwk.json ]; then
+	echo "$COMMAND: ERROR: Failed to download from $JWKS_URI"
+	cat $CONFDIR/idp_jwk.json
+	exit 1
 fi
 
 # Build the sed(1) command file (requires a lot of escaping)
