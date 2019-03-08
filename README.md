@@ -113,3 +113,10 @@ All reference OpenID Connect implementations within the GitHub repository are su
 Subdirectories within the GitHub repository contain variations of the reference implementation for alternative OpenID Connect use cases.
 
   * **opaque_session_token** - Uses the NGINX Plus key-value store to hold the ID Token, sending a random string to the client as the session token. The session token is then exchanged for the ID Token on each request. This use case is valuable when the ID Token contains sensitive information that should not reach the client.
+  
+## Changelog
+
+  * **R15** Initial release of OpenID Connect reference implmentation
+  * **R16** Added support for opaque session tokens using key-value store
+  * **R17** Configuration now supports JSON Web Key (JWK) set to be obtained by URI
+
