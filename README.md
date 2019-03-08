@@ -50,6 +50,8 @@ Finally, create a clone of the GitHub repository.
 
 `$ git clone https://github.com/nginxinc/nginx-openid-connect`
 
+> **N.B.** There is a branch for each NGINX Plus release. Switch to the correct branch to ensure compatibility with the features and syntax of each release.
+
 All files can be copied to **/etc/nginx/conf.d**
 
 > **N.B.** The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. These files are referenced with a relative path (relative to /etc/nginx). If NGINX Plus is running from a non-standard location then copy the files from the GitHub repository to `/path/to/conf/conf.d` and use the `-p` flag to start NGINX with a prefix path that specifies the location where the configuration files are located.
