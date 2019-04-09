@@ -4,7 +4,7 @@
 COMMAND=${0##*/}
 CONFDIR=${0%/*}
 if [ $# -lt 1 ]; then
-	echo "USAGE: $COMMAND [options] <OpenID Connect confinguration URL>"
+	echo "USAGE: $COMMAND [options] <OpenID Connect configuration URL>"
 	echo ""
 	echo "Configures NGINX Plus OpenID Connect reference implementation by using the IdP's Discovery interface"
 	echo ""

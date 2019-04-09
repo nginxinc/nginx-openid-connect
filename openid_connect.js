@@ -1,11 +1,11 @@
 /*
- * nginScript functions for providing OpenID Connect authorization
- * code flow with NGINX Plus.
+ * JavaScript functions for providing OpenID Connect with NGINX Plus
+ * 
+ * Uses keyval as a local token cache, with opaque token sent to the client
+ * Refresh token is used to obtain a new JWT transparently
  *
  * Copyright (C) 2019 Nginx, Inc.
  */
-
-var auth_token = "";
 
 function oidcCodeExchange(r) {
     // First check that we received an authorization code from the IdP
@@ -44,14 +44,11 @@ function oidcCodeExchange(r) {
                 return;
             }
 
-            // Code exchange returned 200, check response
+            // Code exchange returned 200, check for errors
             try {
                 var tokenset = JSON.parse(reply.responseBody);
-                if (!tokenset[r.variables.oidc_token_type]) {
-                    r.error("OIDC received id_token but not " + r.variables.oidc_token_type);
-                    if (tokenset.error) {
-                        r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
-                    }
+                if (tokenset.error) {
+                    r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
                     r.return(500);
                     return;
                 }
@@ -63,23 +60,96 @@ function oidcCodeExchange(r) {
                             r.return(500); // validateIdToken() will log errors
                             return;
                         }
-
                         // ID Token is valid
-                        r.log("OIDC success, sending " + r.variables.oidc_token_type);
-                        auth_token = tokenset[r.variables.oidc_token_type]; // Export as NGINX variable
+
+                        // If the response includes a refresh token then store it
+                        if (tokenset.refresh_token) {
+                            r.variables.new_refresh = tokenset.refresh_token; // Create key-value store entry
+                            r.log("OIDC refresh token stored");
+                        } else {
+                            r.warn("OIDC no refresh token");
+                        }
+
+                        // Add opque token to keyval session store
+                        r.log("OIDC success, creating session " + r.variables.request_id);
+                        r.variables.new_session = tokenset.id_token; // Create key-value store entry
                         r.return(302, r.variables.cookie_auth_redir);
                    }
                 );
             } catch (e) {
-                r.error("OIDC authorization code sent but token response is not JSON. " + reply.status + " " + reply.responseBody);
+                r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseBody);
                 r.return(502);
             }
         }
     );
 }
 
-function getAuthToken(r) {
-    return auth_token;
+function oidcRefreshRequest(r) {
+    // Pass the refresh token code to the /_refresh location so that it can be
+    // proxied to the IdP in exchange for a new id_token
+    r.subrequest("/_refresh", "token=" + r.variables.refresh_token,
+        function(reply) {
+            if (reply.status == 504) {
+                r.error("OIDC timeout connecting to IdP when sending refresh request");
+                r.return(504);
+                return;
+            }
+
+            if (reply.status != 200) {
+                try {
+                    var errorset = JSON.parse(reply.responseBody);
+                    if (errorset.error) {
+                        r.error("OIDC error from IdP when sending refresh request: " + errorset.error + ", " + errorset.error_description);
+                    } else {
+                        r.error("OIDC unexpected response from IdP when sending refresh request (HTTP " + reply.status + "). " + reply.responseBody);
+                    }
+                } catch (e) {
+                    r.error("OIDC unexpected response from IdP when sending refresh request (HTTP " + reply.status + "). " + reply.responseBody);
+                }
+                r.return(502);
+                return;
+            }
+
+            // Refresh request returned 200, check response
+            try {
+                var tokenset = JSON.parse(reply.responseBody);
+                if (!tokenset.id_token) {
+                    r.error("OIDC refresh response did not include id_token");
+                    if (tokenset.error) {
+                        r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
+                    }
+                    r.return(500);
+                    return;
+                }
+
+                // Send the new ID Token to auth_jwt location for validation
+                r.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
+                    function(reply) {
+                        if (reply.status != 204) {
+                            r.return(500); // validateIdToken() will log errors
+                            return;
+                        }
+
+                        // ID Token is valid, update keyval
+                        r.log("OIDC updating id_token");
+                        r.variables.session_jwt = tokenset.id_token; // Update key-value store
+
+                        // Update refresh token (if we got a new one)
+                        if (r.variables.refresh_token != tokenset.refresh_token) {
+                            r.log("OIDC replacing previous refresh token (" + r.variables.refresh_token + ") with new value: " + tokenset.refresh_token);
+                            r.variables.refresh_token = tokenset.refresh_token; // Update key-value store
+                        }
+
+                        r.log("OIDC refresh success");
+                        r.internalRedirect(r.variables.request_uri); // Continue processing original request
+                    }
+                );
+            } catch (e) {
+                r.error("OIDC refresh response is not JSON. " + reply.responseBody);
+                r.return(502);
+            }
+        }
+    );
 }
 
 function hashRequestId(r) {
@@ -113,22 +183,26 @@ function validateIdToken(r) {
 
     // Audience matching
     if (r.variables.jwt_claim_aud != r.variables.oidc_client) {
-        r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_claim_aud + ") does not match $oidc_client");
+        r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_claim_aud + ") does not match configured $oidc_client (" + r.variables.oidc_client + ")");
         valid_token = false;
     }
 
-    // If we receive a nonce in the ID Token then we will use the auth_nonce cookie
+    // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
     // to check that the JWT can be validated as being directly related to the
     // original request by this client. This mitigates against token replay attacks.
-    var client_nonce_hash = "";
-    if (r.variables.cookie_auth_nonce) {
-        var c = require('crypto');
-        var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(r.variables.cookie_auth_nonce);
-        client_nonce_hash = h.digest('base64url');
-    }
-    if (r.variables.jwt_claim_nonce != client_nonce_hash) {
-        r.error("OIDC ID Token validation error: nonce mismatch");
-        valid_token = false;
+    if (r.variables.refresh_token) {
+        r.log("OIDC refresh process skipping nonce validation");
+    } else {
+        var client_nonce_hash = "";
+        if (r.variables.cookie_auth_nonce) {
+            var c = require('crypto');
+            var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(r.variables.cookie_auth_nonce);
+            client_nonce_hash = h.digest('base64url');
+        }
+        if (r.variables.jwt_claim_nonce != client_nonce_hash) {
+            r.error("OIDC ID Token validation error: nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
+            valid_token = false;
+        }
     }
 
     if (valid_token) {

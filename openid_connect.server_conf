@@ -1,50 +1,47 @@
-    location = /_jwks_uri {
-        # This is where the JSON Web Key Set is fetched from the IdP and cached
-        internal;
-        proxy_cache jwk;
-        proxy_pass $oidc_jwt_keyfile;
-
-        # This configuration ignores all response headers that influence caching,
-        # and instead sets a fixed validity period before the JWK is re-fetched.
-        # See http://nginx.org/r/proxy_cache for all configuration options
-        proxy_cache_valid 200 12h;
-        proxy_cache_lock on;
-        proxy_cache_use_stale error timeout updating;
-        proxy_ignore_headers Cache-Control Expires Set-Cookie;
-    }
-
     location @oidc_auth {
-        # Redirect this request to the OpenID Connect identity provider login page for this server{}
-        # Using authorization code flow (nonce sent to IdP is hash of $request_id)
-        add_header Set-Cookie "auth_nonce=$request_id; Path=/; HttpOnly;";  # Random value
-        add_header Set-Cookie "auth_redir=$request_uri; Path=/; HttpOnly;"; # So we know where to come back to
+        if ($refresh_token = "") {
+            # No refresh token so redirect this request to the OpenID Connect identity provider login
+            # page for this server{} using authorization code flow (nonce sent to IdP is hash of $request_id)
+            add_header Set-Cookie "auth_nonce=$request_id; Path=/; HttpOnly;";  # Random value
+            add_header Set-Cookie "auth_redir=$request_uri; Path=/; HttpOnly;"; # So we know where to come back to
 
-        # This URL should work for most OpenID Connect providers.
-        # Adjust the scope or state values as required
-        return 302 "$oidc_authz_endpoint?response_type=code&scope=openid+profile+email&client_id=$oidc_client&state=0&redirect_uri=$scheme://$host:$server_port$redir_location&nonce=$requestid_hash";
+            # This URL should work for most OpenID Connect providers.
+            # Adjust the scope or state values as required (offline_access enables refresh tokens)
+            return 302 "$oidc_authz_endpoint?response_type=code&scope=openid+profile+email+offline_access&client_id=$oidc_client&state=0&redirect_uri=$scheme://$host:$server_port$redir_location&nonce=$requestid_hash";
+        }
+
+        # We have a refresh token so perform refresh operation
+        js_content oidcRefreshRequest;
+
+        # Catch errors from oidcRefreshRequest()
+        # 500 = token validation error, 502 = error from IdP, 504 = IdP timeout
+        error_page 500 502 504 @oidc_error;
 
         access_log /var/log/nginx/oidc_auth.log main;
         error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
+    location = /_jwks_uri {
+        internal;
+        proxy_cache jwk;                              # Cache the JWK Set recieved from IdP
+        proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
+        proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
+        proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+        proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
     }
 
     set $redir_location "/_codexch";
     location = /_codexch {
         # This is where the IdP will send the authorization code after user login
-        js_content oidcCodeExchange; # nginScript function to obtain JWT and issue cookie
-        add_header Set-Cookie "auth_token=$auth_token; HttpOnly;";
+        js_content oidcCodeExchange; # JavaScript function to obtain JWT and issue cookie
+        add_header Set-Cookie "auth_token=$request_id; Path=/; HttpOnly;";
 
         # Catch errors from oidcCodeExchange()
         # 500 = token validation error, 502 = error from IdP, 504 = IdP timeout
         error_page 500 502 504 @oidc_error; 
 
-        access_log /var/log/nginx/oidc_auth.log main;
+        access_log /var/log/nginx/oidc_auth.log main_jwt;
         error_log  /var/log/nginx/oidc_error.log debug;
-    }
-
-    location @oidc_error {
-        # This location is called when oidcCodeExchange() returns an error
-        default_type text/plain;
-        return 500 "NGINX / OpenID Connect login failure\n";
     }
 
     location = /_token {
@@ -52,7 +49,7 @@
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
-        gunzip   on; # Decompress if necessary
+        gunzip on; # Decompress if necessary
 
         proxy_set_header  Content-Type "application/x-www-form-urlencoded";
         proxy_method      POST;
@@ -62,15 +59,56 @@
         error_log  /var/log/nginx/oidc_error.log debug;
     }
 
+    location = /_refresh {
+        # This location is called by oidcRefreshRequest(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+        internal;
+        gunzip on; # Decompress if necessary
+
+        proxy_set_header  Content-Type "application/x-www-form-urlencoded";
+        proxy_method      POST;
+        proxy_set_body    "grant_type=refresh_token&refresh_token=$arg_token&client_id=$oidc_client&client_secret=$oidc_client_secret";
+        proxy_pass        $oidc_token_endpoint;
+
+        error_log  /var/log/nginx/oidc_error.log debug;
+    }
+
     location = /_id_token_validation {
-        # This location is called by oidcCodeExchange(). We use the auth_jwt_module
-        # to validate the OpenID Connect token response, as per:
+        # This location is called by oidcCodeExchange() and oidcRefreshRequest(). We use
+        # the auth_jwt_module to validate the OpenID Connect token response, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
         internal;
         auth_jwt "" token=$arg_token;
         js_content validateIdToken;
 
+        error_page 500 502 504 @oidc_error;
         error_log  /var/log/nginx/oidc_error.log debug;
     }
 
-    # vim: syntax=nginx
+    location = /logout {
+        set $session_jwt "-";   # Clear tokens from keyval, set to - to indicate logout,
+        set $refresh_token "-"; #  and so that the new value is propagated by zone_sync.
+        add_header Set-Cookie "auth_token=; HttpOnly;";
+        return 302 "$oidc_logout_redirect";
+        access_log /var/log/nginx/oidc_auth.log main_jwt;
+    }
+
+    location = /_logout {
+        default_type text/plain;
+        return 200 "Logged out\n";
+    }
+
+    location @oidc_error {
+        # This location is called when oidcCodeExchange() or oidcRefreshRequest() returns an error
+        default_type text/plain;
+        return 500 "NGINX / OpenID Connect login failure\n";
+    }
+
+    location /api/ {
+        api write=on;
+        #allow 127.0.0.1; # Only the NGINX host may call the NIGNX Plus API
+        #deny all;
+    }
+    
+# vim: syntax=nginx
