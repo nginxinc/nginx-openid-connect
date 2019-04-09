@@ -33,7 +33,7 @@ server {
     subrequest_output_buffer_size 32k; # To fit a complete tokenset response
 
     set $oidc_jwt_keyfile     /etc/nginx/my_idp_jwk.json; # URL when using 'auth_jwt_key_request'
-    set $oidc_logout_redirect "/_logout"; # Where to send browser after requesting /logout location
+    set $oidc_logout_redirect "/_logout"; Where to send browser after requesting /logout location
     set $oidc_authz_endpoint  "http://127.0.0.1:8080/auth/realms/master/protocol/openid-connect/auth";
     set $oidc_token_endpoint  "http://127.0.0.1:8080/auth/realms/master/protocol/openid-connect/token";
     set $oidc_client          "my-client-id";
