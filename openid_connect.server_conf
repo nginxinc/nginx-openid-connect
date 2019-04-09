@@ -1,5 +1,5 @@
     location @oidc_auth {
-        if ($refresh_token = "") {
+        if ($no_refresh) {
             # No refresh token so redirect this request to the OpenID Connect identity provider login
             # page for this server{} using authorization code flow (nonce sent to IdP is hash of $request_id)
             add_header Set-Cookie "auth_nonce=$request_id; Path=/; HttpOnly;";  # Random value
@@ -87,14 +87,15 @@
     }
 
     location = /logout {
-        set $session_jwt "-";   # Clear tokens from keyval, set to - to indicate logout,
-        set $refresh_token "-"; #  and so that the new value is propagated by zone_sync.
-        add_header Set-Cookie "auth_token=; HttpOnly;";
-        return 302 "$oidc_logout_redirect";
-        access_log /var/log/nginx/oidc_auth.log main_jwt;
+        set $session_jwt -;   # Clear tokens from keyval, set to - to indicate logout,
+        set $refresh_token -; #  and so that the new value is propagated by zone_sync.
+        add_header Set-Cookie "auth_token=; Path=/; HttpOnly;"; # Send empty cookie
+        add_header Set-Cookie "auth_redir=; Path=/; HttpOnly;"; # Erase original cookie
+        return 302 $oidc_logout_redirect;
     }
 
     location = /_logout {
+        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
         default_type text/plain;
         return 200 "Logged out\n";
     }
