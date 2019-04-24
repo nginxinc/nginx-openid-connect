@@ -108,8 +108,8 @@
 
     location /api/ {
         api write=on;
-        #allow 127.0.0.1; # Only the NGINX host may call the NIGNX Plus API
-        #deny all;
+        allow 127.0.0.1; # Only the NGINX host may call the NIGNX Plus API
+        deny all;
     }
     
 # vim: syntax=nginx
