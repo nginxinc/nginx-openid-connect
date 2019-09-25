@@ -27,6 +27,7 @@
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
         proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
         proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+        proxy_method GET;                             # In case client request was non-GET
         proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
     }
 
