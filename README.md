@@ -167,8 +167,9 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
 
 ## Changelog
 
-  * **R15** Initial release of OpenID Connect reference implmentation
+  * **R15** Initial release of OpenID Connect reference implementation
   * **R16** Added support for opaque session tokens using key-value store
   * **R17** Configuration now supports JSON Web Key (JWK) set to be obtained by URI
   * **R18** Opaque session tokens now used by default. Added support for refresh tokens. Added `/logout` location.
+  * **R19** Minor bug fixes
 
