@@ -164,13 +164,14 @@ function hashRequestId(r) {
 
 function validateIdToken(r) {
     // Check mandatory claims
-    var required_claims = ["aud", "iat", "iss", "sub"];
+    var required_claims = ["iat", "iss", "sub"]; // aud is checked separately
     var missing_claims = [];
     for (var i in required_claims) {
         if (r.variables["jwt_claim_" + required_claims[i]].length == 0 ) {
             missing_claims.push(required_claims[i]);
         }
     }
+    if (r.variables.jwt_audience.length == 0) missing_claims.push("aud");
     if (missing_claims.length) {
         r.error("OIDC ID Token validation error: missing claim(s) " + missing_claims.join(" "));
         r.return(403);
@@ -186,8 +187,9 @@ function validateIdToken(r) {
     }
 
     // Audience matching
-    if (r.variables.jwt_claim_aud != r.variables.oidc_client) {
-        r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_claim_aud + ") does not match configured $oidc_client (" + r.variables.oidc_client + ")");
+    var aud = r.variables.jwt_audience.split(",");
+    if (!aud.includes(r.variables.oidc_client)) {
+        r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_audience + ") does not include configured $oidc_client (" + r.variables.oidc_client + ")");
         valid_token = false;
     }
 
