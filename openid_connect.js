@@ -70,7 +70,7 @@ function oidcCodeExchange(r) {
                             r.warn("OIDC no refresh token");
                         }
 
-                        // Add opque token to keyval session store
+                        // Add opaque token to keyval session store
                         r.log("OIDC success, creating session " + r.variables.request_id);
                         r.variables.new_session = tokenset.id_token; // Create key-value store entry
                         r.return(302, r.variables.cookie_auth_redir);
