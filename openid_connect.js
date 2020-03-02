@@ -94,7 +94,7 @@ function oidcRefreshRequest(r) {
                 var error_log = "OIDC refresh failure";
                 if (reply.status == 504) {
                     error_log += ", timeout waiting for IdP";
-                } else if (reply.status = 400) {
+                } else if (reply.status == 400) {
                     try {
                         var errorset = JSON.parse(reply.responseBody);
                         error_log += ": " + errorset.error + " " + errorset.error_description;
