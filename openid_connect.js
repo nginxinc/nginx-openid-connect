@@ -1,90 +1,42 @@
 /*
  * JavaScript functions for providing OpenID Connect with NGINX Plus
  * 
- * Uses keyval as a local token cache, with opaque token sent to the client
- * Refresh token is used to obtain a new JWT transparently
- *
- * Copyright (C) 2019 Nginx, Inc.
+ * Copyright (C) 2020 Nginx, Inc.
  */
 
-function oidcCodeExchange(r) {
-    // First check that we received an authorization code from the IdP
-    if (r.variables.arg_code.length == 0) {
-        if (r.variables.arg_error) {
-            r.error("OIDC error receiving authorization code from IdP: " + r.variables.arg_error_description);
-        } else {
-            r.error("OIDC expected authorization code from IdP but received: " + r.variables.uri);
+var newSession = false; // Used by oidcAuth() and validateIdToken()
+
+function oidcAuth(r) {
+    if (r.variables.refresh_token == null || r.variables.refresh_token == "-") {
+        newSession = true;
+
+        // Check we have all necessary configuration variables (referenced only by njs)
+        var oidcConfigurables = ["authz_endpoint", "scopes", "hmac_key", "cookie_flags"];
+        var missingConfig = [];
+        for (var i in oidcConfigurables) {
+            if (r.variables["oidc_" + oidcConfigurables[i]] == null || r.variables["oidc_" + oidcConfigurables[i]] == "") {
+                missingConfig.push(oidcConfigurables[i]);
+            }
         }
-        r.return(502);
+        if (missingConfig.length) {
+            r.error("OIDC missing configuration variables: $oidc_" + missingConfig.join(" $oidc_"));
+            r.return(500, r.variables.internal_error_message);
+            return;
+        }
+
+        // Choose a nonce for this flow for the client, and hash it for the IdP
+        var noncePlain = r.variables.request_id;
+        var c = require('crypto');
+        var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
+        var nonceHash = h.digest('base64url');
+
+        // Redirect the client to the IdP login page with the headers we need for state
+        r.headersOut['Set-Cookie'] = "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags;
+        r.headersOut['Set-Cookie'] = "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags;
+        r.return(302, r.variables.oidc_authz_endpoint + "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.scheme + "://" + r.variables.host + ":" + r.variables.server_port + r.variables.redir_location + "&nonce=" + nonceHash);
         return;
     }
-
-    // Pass the authorization code to the /_token location so that it can be
-    // proxied to the IdP in exchange for a JWT
-    r.subrequest("/_token", "code=" + r.variables.arg_code,
-        function(reply) {
-            if (reply.status == 504) {
-                r.error("OIDC timeout connecting to IdP when sending authorization code");
-                r.return(504);
-                return;
-            }
-
-            if (reply.status != 200) {
-                try {
-                    var errorset = JSON.parse(reply.responseBody);
-                    if (errorset.error) {
-                        r.error("OIDC error from IdP when sending authorization code: " + errorset.error + ", " + errorset.error_description);
-                    } else {
-                        r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
-                    }
-                } catch (e) {
-                    r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
-                }
-                r.return(502);
-                return;
-            }
-
-            // Code exchange returned 200, check for errors
-            try {
-                var tokenset = JSON.parse(reply.responseBody);
-                if (tokenset.error) {
-                    r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
-                    r.return(500);
-                    return;
-                }
-
-                // Send the ID Token to auth_jwt location for validation
-                r.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
-                    function(reply) {
-                        if (reply.status != 204) {
-                            r.return(500); // validateIdToken() will log errors
-                            return;
-                        }
-                        // ID Token is valid
-
-                        // If the response includes a refresh token then store it
-                        if (tokenset.refresh_token) {
-                            r.variables.new_refresh = tokenset.refresh_token; // Create key-value store entry
-                            r.log("OIDC refresh token stored");
-                        } else {
-                            r.warn("OIDC no refresh token");
-                        }
-
-                        // Add opaque token to keyval session store
-                        r.log("OIDC success, creating session " + r.variables.request_id);
-                        r.variables.new_session = tokenset.id_token; // Create key-value store entry
-                        r.return(302, r.variables.cookie_auth_redir);
-                   }
-                );
-            } catch (e) {
-                r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseBody);
-                r.return(502);
-            }
-        }
-    );
-}
-
-function oidcRefreshRequest(r) {
+    
     // Pass the refresh token to the /_refresh location so that it can be
     // proxied to the IdP in exchange for a new id_token
     r.subrequest("/_refresh", "token=" + r.variables.refresh_token,
@@ -144,6 +96,7 @@ function oidcRefreshRequest(r) {
                             r.variables.refresh_token = tokenset.refresh_token; // Update key-value store
                         }
 
+                        r.headersOut["WWW-Authenticate"] = ""; // Remove evidence of original failed auth_jwt
                         r.internalRedirect(r.variables.request_uri); // Continue processing original request
                     }
                 );
@@ -156,10 +109,83 @@ function oidcRefreshRequest(r) {
     );
 }
 
-function hashRequestId(r) {
-    var c = require('crypto');
-    var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(r.variables.request_id);
-    return h.digest('base64url');
+function oidcCodeExchange(r) {
+    // First check that we received an authorization code from the IdP
+    if (r.variables.arg_code.length == 0) {
+        if (r.variables.arg_error) {
+            r.error("OIDC error receiving authorization code from IdP: " + r.variables.arg_error_description);
+        } else {
+            r.error("OIDC expected authorization code from IdP but received: " + r.uri);
+        }
+        r.return(502);
+        return;
+    }
+
+    // Pass the authorization code to the /_token location so that it can be
+    // proxied to the IdP in exchange for a JWT
+    r.subrequest("/_token", "code=" + r.variables.arg_code,
+        function(reply) {
+            if (reply.status == 504) {
+                r.error("OIDC timeout connecting to IdP when sending authorization code");
+                r.return(504);
+                return;
+            }
+
+            if (reply.status != 200) {
+                try {
+                    var errorset = JSON.parse(reply.responseBody);
+                    if (errorset.error) {
+                        r.error("OIDC error from IdP when sending authorization code: " + errorset.error + ", " + errorset.error_description);
+                    } else {
+                        r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
+                    }
+                } catch (e) {
+                    r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
+                }
+                r.return(502);
+                return;
+            }
+
+            // Code exchange returned 200, check for errors
+            try {
+                var tokenset = JSON.parse(reply.responseBody);
+                if (tokenset.error) {
+                    r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
+                    r.return(500);
+                    return;
+                }
+
+                // Send the ID Token to auth_jwt location for validation
+                r.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
+                    function(reply) {
+                        if (reply.status != 204) {
+                            r.return(500); // validateIdToken() will log errors
+                            return;
+                        }
+                        // ID Token is valid
+
+                        // If the response includes a refresh token then store it
+                        if (tokenset.refresh_token) {
+                            r.variables.new_refresh = tokenset.refresh_token; // Create key-value store entry
+                            r.log("OIDC refresh token stored");
+                        } else {
+                            r.warn("OIDC no refresh token");
+                        }
+
+                        // Add opaque token to keyval session store
+                        r.log("OIDC success, creating session " + r.variables.request_id);
+                        r.variables.new_session = tokenset.id_token; // Create key-value store entry
+                        r.headersOut["Set-Cookie"] = "auth_token=" + r.variables.request_id + "; Path=/; HttpOnly;";
+                        r.log("OIDC redirecting to " + r.variables.cookie_auth_redir);
+                        r.return(302, r.variables.cookie_auth_redir);
+                   }
+                );
+            } catch (e) {
+                r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseBody);
+                r.return(502);
+            }
+        }
+    );
 }
 
 function validateIdToken(r) {
@@ -177,28 +203,26 @@ function validateIdToken(r) {
         r.return(403);
         return;
     }
-    var valid_token = true;
+    var validToken = true;
 
     // Check iat is a positive integer
     var iat = Math.floor(Number(r.variables.jwt_claim_iat));
     if (String(iat) != r.variables.jwt_claim_iat || iat < 1) {
         r.error("OIDC ID Token validation error: iat claim is not a valid number");
-        valid_token = false;
+        validToken = false;
     }
 
     // Audience matching
     var aud = r.variables.jwt_audience.split(",");
     if (!aud.includes(r.variables.oidc_client)) {
         r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_audience + ") does not include configured $oidc_client (" + r.variables.oidc_client + ")");
-        valid_token = false;
+        validToken = false;
     }
 
     // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
     // to check that the JWT can be validated as being directly related to the
     // original request by this client. This mitigates against token replay attacks.
-    if (r.variables.refresh_token) {
-        r.log("OIDC refresh process skipping nonce validation");
-    } else {
+    if (newSession) {
         var client_nonce_hash = "";
         if (r.variables.cookie_auth_nonce) {
             var c = require('crypto');
@@ -207,11 +231,11 @@ function validateIdToken(r) {
         }
         if (r.variables.jwt_claim_nonce != client_nonce_hash) {
             r.error("OIDC ID Token validation error: nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
-            valid_token = false;
+            validToken = false;
         }
     }
 
-    if (valid_token) {
+    if (validToken) {
         r.return(204);
     } else {
         r.return(403);
