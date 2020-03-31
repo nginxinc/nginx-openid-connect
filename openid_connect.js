@@ -47,6 +47,7 @@ function oidcCodeExchange(r) {
             // Code exchange returned 200, check for errors
             try {
                 var tokenset = JSON.parse(reply.responseBody);
+
                 if (tokenset.error) {
                     r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
                     r.return(500);
@@ -193,6 +194,16 @@ function validateIdToken(r) {
         valid_token = false;
     }
 
+    // Group matching
+    var groups = r.variables.jwt_groups.split(",");
+    var configured_groups = r.variables.oidc_group.split(",");
+    // Test if one of the user's groups is in the list of allowed groups.
+    var matching_groups = groups.filter(value => configured_groups.includes(value));
+    if ( configured_groups.length > 0 && matching_groups.length == 0 ) {
+        r.error("OIDC ID Token validation error: group claim (" + r.variables.jwt_groups + ") does not include configured $oidc_group (" + r.variables.oidc_group + ")");
+        valid_token = false;
+    }
+
     // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
     // to check that the JWT can be validated as being directly related to the
     // original request by this client. This mitigates against token replay attacks.
@@ -217,3 +228,4 @@ function validateIdToken(r) {
         r.return(403);
     }
 }
+
