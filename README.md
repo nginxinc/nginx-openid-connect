@@ -58,13 +58,19 @@ Finally, create a clone of the GitHub repository.
 
 `$ git clone https://github.com/nginxinc/nginx-openid-connect`
 
-> **N.B.** There is a branch for each NGINX Plus release. Switch to the correct branch to ensure compatibility with the features and syntax of each release.
+> **Note:** There is a branch for each NGINX Plus release. Switch to the correct branch to ensure compatibility with the features and syntax of each release.
 
 All files can be copied to **/etc/nginx/conf.d**
 
-> **N.B.** The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. These files are referenced with a relative path (relative to /etc/nginx). If NGINX Plus is running from a non-standard location then copy the files from the GitHub repository to `/path/to/conf/conf.d` and use the `-p` flag to start NGINX with a prefix path that specifies the location where the configuration files are located.
->
-> `nginx -p /path/to/conf -c /path/to/conf/nginx.conf`
+### Non-standard directories
+The GitHub repository contains [include](http://nginx.org/en/docs/ngx_core_module.html#include) files for NGINX configuration and JavaScript code for token exchange and initial token validation. These files are referenced with a relative path (relative to /etc/nginx). If NGINX Plus is running from a non-standard location then copy the files from the GitHub repository to `/path/to/conf/conf.d` and use the `-p` flag to start NGINX with a prefix path that specifies the location where the configuration files are located.
+
+```shell
+nginx -p /path/to/conf -c /path/to/conf/nginx.conf`
+```
+
+### Running in containers
+
 
 ## Configuring your IdP
 
@@ -83,20 +89,24 @@ All files can be copied to **/etc/nginx/conf.d**
 
 Review the following files copied from the GitHub repository so that they match your IdP configuration.
 
-  * **frontend.conf** - this is the reverse proxy configuration and where the IdP is configured. This file can be automatically configured by using the `configure.sh` script.
-    * Modify the upstream group to match your backend site or app
-    * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
+Can be automatically configured by using the `configure.sh` script.
+
+  * **openid_connect_configuration.conf** - … for each IdP
     * Modify the URI defined in `$oidc_logout_redirect` to specify an unprotected resource to be displayed after requesting the `/logout` location
-    * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
-    * Set the value of `$oidc_jwt_keyfile` to specify the `jwks_uri` value or match the JWK file downloaded from the IdP (ensuring that it is readable by the NGINX worker processes)
-    * Comment/uncomment the `auth_jwt_key_file` or `auth_jwt_key_request` directives based on whether `$oidc_jwt_keyfile` is a file or URI, respectively
     * Modify all of the `set $oidc_` directives to match your IdP configuration
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
 
+  * **frontend.conf** - this is the reverse proxy configuration
+    * Modify the upstream group to match your backend site or app
+    * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
+    * Set the value of `$oidc_jwt_keyfile` to specify the `jwks_uri` value or match the JWK file downloaded from the IdP (ensuring that it is readable by the NGINX worker processes)
+    * Comment/uncomment the `auth_jwt_key_file` or `auth_jwt_key_request` directives based on whether `$oidc_jwt_keyfile` is a file or URI, respectively
+
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
     * No changes are usually required here
+    * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint`
     * If using [`auth_jwt_key_request`](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html#auth_jwt_key_request) to automatically fetch the JWK file from the IdP then modify the validity period and other caching options to suit your IdP
-    * Modify the `add_header Set-Cookie` directives with appropriate [cookie flags](https://en.wikipedia.org/wiki/HTTP_cookie#Terminology) to control the scope of single sign-on and security options, e.g. Domain; Path; Secure;
+    * If running in a container, change the `error_log` directive to use **stderr** instead of a separate file
 
   * **openid_connect.js** - this is the JavaScript code for performing the authorization code exchange and nonce hashing
     * No changes are required unless modifying the code exchange or validation process
@@ -106,7 +116,7 @@ Review the following files copied from the GitHub repository so that they match 
 The key-value store is used to maintain persistent storage for ID tokens and refresh tokens. The default configuration should be reviewed so that it suits the environment.
 
 ```nginx
-keyval_zone zone=opaque_sessions:1M state=conf.d/opaque_sessions.json timeout=1h;
+keyval_zone zone=oidc_id_tokens:1M state=conf.d/oidc_id_tokens.json timeout=1h;
 keyval_zone zone=refresh_tokens:1M  state=conf.d/refresh_tokens.json  timeout=8h;
 ```
 
@@ -120,6 +130,8 @@ Each of the `keyval_zone` parameters are described below.
 
   * **sync** (optional) - If deployed in a cluster, the key-value store may be synchronized across all instances in the cluster, so that all instances are able to create and validate authenticated sessions. Each instance must be configured to participate in state sharing with the [zone_sync module](http://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) and by adding the `sync` parameter to the `keyval_zone` directives above.
 
+## Real time monitoring
+
 ## Session Management
 
 The [NGINX Plus API](http://nginx.org/en/docs/http/ngx_http_api_module.html) is enabled in **openid_connect.server_conf** so that sessions can be monitored. The API can also be used to manage the current set of active sessions.
@@ -127,20 +139,20 @@ The [NGINX Plus API](http://nginx.org/en/docs/http/ngx_http_api_module.html) is 
 To query the current sessions in the key-value store:
 
 ```shell
-$ curl localhost:8010/api/4/http/keyvals/opaque_sessions
+$ curl localhost:8010/api/4/http/keyvals/oidc_id_tokens
 ```
 
 To delete a single session:
 
 ```shell
-$ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/4/http/keyvals/opaque_sessions
+$ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/4/http/keyvals/oidc_id_tokens
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/4/http/keyvals/refresh_tokens
 ```
 
 To delete all sessions:
 
 ```shell
-$ curl -iX DELETE localhost:8010/api/3/http/keyvals/opaque_sessions
+$ curl -iX DELETE localhost:8010/api/3/http/keyvals/oidc_id_tokens
 $ curl -iX DELETE localhost:8010/api/3/http/keyvals/refresh_tokens
 ```
 
@@ -168,7 +180,6 @@ Any errors generated by the OpenID Connect flow are logged in a separate file, `
 ```nginx
 proxy_set_header Host <IdP hostname>;
 proxy_ssl_name        <IdP hostname>;
-proxy_ssl_server_name on;
 ```
 
 ## Support
@@ -182,4 +193,5 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R17** Configuration now supports JSON Web Key (JWK) set to be obtained by URI
   * **R18** Opaque session tokens now used by default. Added support for refresh tokens. Added `/logout` location.
   * **R19** Minor bug fixes
+  * **R21** Separate configuration file, supports multiple IdPs. Configurable scopes and cookie flags. JavaScript is imported as a module with js_import.
 
