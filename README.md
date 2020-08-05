@@ -78,7 +78,7 @@ This implementation is suitable for running in a container provided that the [ba
 
 ```shell
 $ cd nginx-openid-connect
-$ docker run -d -p 8010:8010 -v $PWD:/etc/nginx/conf.d nginx-plus
+$ docker run -d -p 8010:8010 -v $PWD:/etc/nginx/conf.d nginx-plus nginx -g 'daemon off; load_module modules/ngx_http_js_module.so;'
 ```
 
 ## Configuring your IdP
