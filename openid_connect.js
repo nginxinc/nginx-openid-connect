@@ -35,7 +35,7 @@ function auth(r) {
         r.headersOut['Set-Cookie'] = [
             "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
             "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags ];
-        r.return(302, r.variables.oidc_authz_endpoint + "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.scheme + "://" + r.variables.host + ":" + r.variables.server_port + r.variables.redir_location + "&nonce=" + nonceHash);
+        r.return(302, r.variables.oidc_authz_endpoint + "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash);
         return;
     }
     
@@ -177,7 +177,7 @@ function codeExchange(r) {
                         r.log("OIDC success, creating session " + r.variables.request_id);
                         r.variables.new_session = tokenset.id_token; // Create key-value store entry
                         r.headersOut["Set-Cookie"] = "auth_token=" + r.variables.request_id + "; " + r.variables.oidc_cookie_flags;
-                        r.return(302, r.variables.cookie_auth_redir);
+                        r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
                    }
                 );
             } catch (e) {
