@@ -38,7 +38,7 @@
         internal;
         proxy_ssl_server_name on; # For SNI to the IdP
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
-        proxy_set_body        "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$scheme://$host:$server_port$redir_location";
+        proxy_set_body        "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$redirect_base$redir_location";
         proxy_method          POST;
         proxy_pass            $oidc_token_endpoint;
    }

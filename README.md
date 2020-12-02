@@ -81,6 +81,9 @@ $ cd nginx-openid-connect
 $ docker run -d -p 8010:8010 -v $PWD:/etc/nginx/conf.d nginx-plus nginx -g 'daemon off; load_module modules/ngx_http_js_module.so;'
 ```
 
+### Running behind another proxy or load balancer
+When NGINX Plus is deployed behind another proxy, the original protocol and port number are not available. NGINX Plus needs this information to construct the URIs it passes to the IdP and for redirects. By default NGINX Plus looks for the X-Forwarded-Proto and X-Forwarded-Port request headers to construct these URIs.
+
 ## Configuring your IdP
 
   * Create an OpenID Connect client to represent your NGINX Plus instance
@@ -104,6 +107,7 @@ Manual configuration involves reviewing the following files so that they match y
     * Modify all of the `map…$oidc_` blocks to match your IdP configuration
     * Modify the URI defined in `map…$oidc_logout_redirect` to specify an unprotected resource to be displayed after requesting the `/logout` location
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
+    * If NGINX Plus is deployed behind another proxy or load balancer, modify the `map…$redirect_base` and `map…$proto` blocks to define how to obtain the original protocol and port number.
 
   * **frontend.conf** - this is the reverse proxy configuration
     * Modify the upstream group to match your backend site or app
