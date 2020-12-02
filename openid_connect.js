@@ -7,6 +7,36 @@ var newSession = false; // Used by oidcAuth() and validateIdToken()
 
 export default {auth, codeExchange, validateIdToken, logout};
 
+
+function authZUriHandler(r) {
+    // Choose a nonce for this flow for the client, and hash it for the IdP
+    var authZUri = null;
+    var noncePlain = r.variables.request_id;
+    var c = require('crypto');
+    var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
+    var nonceHash = h.digest('base64url');
+
+    // Redirect the client to the IdP login page with the cookies we need for state
+    r.headersOut['Set-Cookie'] = [
+        "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
+        "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags ];
+
+    if ( r.variables.oidc_pkce_enable == 1 ) {
+        
+        var pkce_code_verifier = c.createHmac('sha256', r.variables.oidc_hmac_key).update(String(Math.random())).digest('hex');
+        r.variables.pkce_id = c.createHash('sha256').update(String(Math.random())).digest('base64url');
+        var pkce_code_challenge = c.createHash('sha256').update(pkce_code_verifier).digest('base64url');
+        r.variables.pkce_code_verifier = pkce_code_verifier;
+
+        authZUri = "?response_type=code&scope=" + r.variables.oidc_scopes + "&code_challenge_method=S256&code_challenge="+pkce_code_challenge+"&client_id=" + r.variables.oidc_client + "&state="+ r.variables.pkce_id +"&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash;
+    } else {
+        authZUri = "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash;
+    }
+
+    return authZUri;
+
+}
+
 function auth(r) {
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
         newSession = true;
@@ -25,17 +55,7 @@ function auth(r) {
             return;
         }
 
-        // Choose a nonce for this flow for the client, and hash it for the IdP
-        var noncePlain = r.variables.request_id;
-        var c = require('crypto');
-        var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
-        var nonceHash = h.digest('base64url');
-
-        // Redirect the client to the IdP login page with the cookies we need for state
-        r.headersOut['Set-Cookie'] = [
-            "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
-            "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags ];
-        r.return(302, r.variables.oidc_authz_endpoint + "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash);
+        r.return(302, r.variables.oidc_authz_endpoint + authZUriHandler(r));
         return;
     }
     
@@ -125,7 +145,20 @@ function codeExchange(r) {
 
     // Pass the authorization code to the /_token location so that it can be
     // proxied to the IdP in exchange for a JWT
-    r.subrequest("/_token", "code=" + r.variables.arg_code,
+
+    var internalTokenEndpoint = null;
+    var internalTokenEndpointUri = null;
+
+    if ( r.variables.oidc_pkce_enable == 1 ) {
+        internalTokenEndpoint = "/_toke_pkce";
+        r.variables.pkce_id = r.variables.arg_state;
+        internalTokenEndpointUri = "code=" + r.variables.arg_code + "&code_verifier="+ r.variables.pkce_code_verifier;
+    } else {
+        internalTokenEndpoint = "/_token";
+        internalTokenEndpointUri = "code=" + r.variables.arg_code;
+    }
+
+    r.subrequest(internalTokenEndpoint, internalTokenEndpointUri,
         function(reply) {
             if (reply.status == 504) {
                 r.error("OIDC timeout connecting to IdP when sending authorization code");
