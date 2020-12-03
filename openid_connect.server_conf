@@ -37,6 +37,8 @@
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
         proxy_ssl_server_name on; # For SNI to the IdP
+        proxy_set_header      Accept "application/json";
+        proxy_set_header      Accept-Encoding "identity";
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_body        "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$redirect_base$redir_location";
         proxy_method          POST;
@@ -49,6 +51,8 @@
         #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
         internal;
         proxy_ssl_server_name on; # For SNI to the IdP
+        proxy_set_header      Accept "application/json";
+        proxy_set_header      Accept-Encoding "identity";
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_body        "grant_type=refresh_token&refresh_token=$arg_token&client_id=$oidc_client&client_secret=$oidc_client_secret";
         proxy_method          POST;
