@@ -1,5 +1,6 @@
     # Advanced configuration START
     set $internal_error_message "NGINX / OpenID Connect login failure\n";
+    set $pkce_id "";
     resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
     subrequest_output_buffer_size 32k; # To fit a complete tokenset response
     gunzip on; # Decompress IdP responses if necessary
@@ -30,7 +31,7 @@
         js_content oidc.codeExchange;
         error_page 500 502 504 @oidc_error; 
     }
-
+   
     location = /_token {
         # This location is called by oidcCodeExchange(). We use the proxy_ directives
         # to construct the OpenID Connect token request, as per:
@@ -38,7 +39,7 @@
         internal;
         proxy_ssl_server_name on; # For SNI to the IdP
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
-        proxy_set_body        "grant_type=authorization_code&code=$arg_code&client_id=$oidc_client&client_secret=$oidc_client_secret&redirect_uri=$redirect_base$redir_location";
+        proxy_set_body        "grant_type=authorization_code&client_id=$oidc_client&$args&redirect_uri=$redirect_base$redir_location";
         proxy_method          POST;
         proxy_pass            $oidc_token_endpoint;
    }

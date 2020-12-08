@@ -24,18 +24,8 @@ function auth(r) {
             r.return(500, r.variables.internal_error_message);
             return;
         }
-
-        // Choose a nonce for this flow for the client, and hash it for the IdP
-        var noncePlain = r.variables.request_id;
-        var c = require('crypto');
-        var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
-        var nonceHash = h.digest('base64url');
-
         // Redirect the client to the IdP login page with the cookies we need for state
-        r.headersOut['Set-Cookie'] = [
-            "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
-            "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags ];
-        r.return(302, r.variables.oidc_authz_endpoint + "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&state=0&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash);
+        r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
         return;
     }
     
@@ -125,8 +115,7 @@ function codeExchange(r) {
 
     // Pass the authorization code to the /_token location so that it can be
     // proxied to the IdP in exchange for a JWT
-    r.subrequest("/_token", "code=" + r.variables.arg_code,
-        function(reply) {
+    r.subrequest("/_token",idpClientAuth(r), function(reply) {
             if (reply.status == 504) {
                 r.error("OIDC timeout connecting to IdP when sending authorization code");
                 r.return(504);
@@ -247,4 +236,40 @@ function logout(r) {
     r.variables.session_jwt = "-";
     r.variables.refresh_token = "-";
     r.return(302, r.variables.oidc_logout_redirect);
+}
+
+function getAuthZArgs(r) {
+    // Choose a nonce for this flow for the client, and hash it for the IdP
+    var noncePlain = r.variables.request_id;
+    var c = require('crypto');
+    var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
+    var nonceHash = h.digest('base64url');
+    var authZArgs = "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash;
+
+    r.headersOut['Set-Cookie'] = [
+        "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
+        "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags
+    ];
+
+    if ( r.variables.oidc_pkce_enable == 1 ) {
+        var pkce_code_verifier = c.createHmac('sha256', r.variables.oidc_hmac_key).update(String(Math.random())).digest('hex');
+        r.variables.pkce_id = c.createHash('sha256').update(String(Math.random())).digest('base64url');
+        var pkce_code_challenge = c.createHash('sha256').update(pkce_code_verifier).digest('base64url');
+        r.variables.pkce_code_verifier = pkce_code_verifier;
+
+        authZArgs += "&code_challenge_method=S256&code_challenge=" + pkce_code_challenge + "&state=" + r.variables.pkce_id;
+    } else {
+        authZArgs += "&state=0";
+    }
+    return authZArgs;
+}
+
+function idpClientAuth(r) {
+    // If PKCE is enabled we have to use the code_verifier
+    if ( r.variables.oidc_pkce_enable == 1 ) {
+        r.variables.pkce_id = r.variables.arg_state;
+        return "code=" + r.variables.arg_code + "&code_verifier=" + r.variables.pkce_code_verifier;
+    } else {
+        return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
+    }   
 }
