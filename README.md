@@ -15,7 +15,7 @@ This implementation assumes the following environment:
   * The identity provider (IdP) supports OpenID Connect 1.0
   * The authorization code flow is in use
   * NGINX Plus is configured as a relying party
-  * The IdP knows NGINX Plus as a confidential client (using client_secret or PKCE)
+  * The IdP knows NGINX Plus as a confidential client or a public client using PKCE
 
 With this environment, both the client and NGINX Plus communicate directly with the IdP at different stages during the initial authentication event.
 
@@ -89,8 +89,8 @@ When NGINX Plus is deployed behind another proxy, the original protocol and port
   * Create an OpenID Connect client to represent your NGINX Plus instance
     * Choose the **authorization code flow**
     * Set the **redirect URI** to the address of your NGINX Plus instance (including the port number), with `/_codexch` as the path, e.g. `https://my-nginx.example.com:443/_codexch`
-    * Ensure NGINX Plus is configured as a confidential client (with a client secret)
-    * Make a note of the `client ID` and `client secret`
+    * Ensure NGINX Plus is configured as a confidential client (with a client secret) or a public client (with PKCE S256 enabled)
+    * Make a note of the `client ID` and `client secret` if set
 
   * If your IdP supports OpenID Connect Discovery (usually at the URI `/.well-known/openid-configuration`) then use the `configure.sh` script to complete configuration. In this case you can skip the next section. Otherwise:
     * Obtain the URL for `jwks_uri` or download the JWK file to your NGINX Plus instance
@@ -130,6 +130,7 @@ The key-value store is used to maintain persistent storage for ID tokens and ref
 ```nginx
 keyval_zone zone=oidc_id_tokens:1M state=conf.d/oidc_id_tokens.json timeout=1h;
 keyval_zone zone=refresh_tokens:1M state=conf.d/refresh_tokens.json timeout=8h;
+keyval_zone zone=oidc_pkce:128K timeout=90s;
 ```
 
 Each of the `keyval_zone` parameters are described below.
