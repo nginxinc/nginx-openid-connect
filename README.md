@@ -15,7 +15,7 @@ This implementation assumes the following environment:
   * The identity provider (IdP) supports OpenID Connect 1.0
   * The authorization code flow is in use
   * NGINX Plus is configured as a relying party
-  * The IdP knows NGINX Plus as a confidential client
+  * The IdP knows NGINX Plus as a confidential client (using client_secret or PKCE)
 
 With this environment, both the client and NGINX Plus communicate directly with the IdP at different stages during the initial authentication event.
 
@@ -229,3 +229,4 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R18** Opaque session tokens now used by default. Added support for refresh tokens. Added `/logout` location.
   * **R19** Minor bug fixes
   * **R22** Separate configuration file, supports multiple IdPs. Configurable scopes and cookie flags. JavaScript is imported as an indepedent module with `js_import`. Container-friendly logging. Additional metrics for OIDC activity.
+  * **R23** PKCE support. Added support for deployments behind another proxy or load balancer.
