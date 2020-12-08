@@ -11,10 +11,11 @@ if [ $# -lt 1 ]; then
 	echo ""
 	echo " URL typically ends with '/openid-configuration'"
 	echo " Options:"
-        echo " -h | --host <server_name>           # Configure for specific host (server FQDN)"
+	echo " -h | --host <server_name>           # Configure for specific host (server FQDN)"
 	echo " -k | --auth_jwt_key <file|request>  # Use auth_jwt_key_file (default) or auth_jwt_key_request"
 	echo " -i | --client_id <id>               # Client ID as obtained from OpenID Connect Provider"
 	echo " -s | --client_secret <secret>       # Client secret as obtained from OpenID Connect Provider"
+	echo " -p | --pkce_enable                  # Enable PKCE for this client"
 	echo " -x | --insecure                     # Do not verify IdP's SSL certificate"
 	echo ""
 	exit 1
@@ -25,6 +26,7 @@ fi
 DO_JWKS_URI=0
 CLIENT_ID=""
 CLIENT_SECRET=""
+PKCE=0
 HOSTNAME="default"
 SED_BAK=".ORIG"
 while [ $# -gt 1 ]; do
@@ -45,6 +47,10 @@ while [ $# -gt 1 ]; do
 		"-s" | "--client_secret" | "--client-secret")
 			CLIENT_SECRET=$2
 			shift; shift
+			;;
+		"-p" | "--pkce_enable" | "--pkce-enable" | "--enable_pkce" | "--enable-pkce")
+			PKCE=1
+			shift
 			;;
 		"-h" | "--host" )
 			HOSTNAME=$2
@@ -129,6 +135,10 @@ if [ "$CLIENT_SECRET" != "" ]; then
 	echo "\$oidc_client_secret $CLIENT_SECRET" >> /tmp/${COMMAND}_$$_conf
 fi
 
+# Add PKCE configuration
+PKCE_ENABLE_VAR=\$oidc_pkce_enable
+echo "\$oidc_pkce_enable $PKCE" >> /tmp/${COMMAND}_$$_conf
+
 # Fetch or configure the JWK file depending on configuration input
 # Also apply appropriate auth_jwt_key_ configuration directive.
 #
@@ -168,7 +178,7 @@ fi
 
 # Loop through each configuration variable
 echo "$COMMAND: NOTICE: Configuring $CONFDIR/openid_connect_configuration.conf"
-for OIDC_VAR in \$oidc_authz_endpoint \$oidc_token_endpoint \$oidc_jwt_keyfile \$oidc_hmac_key $CLIENT_ID_VAR $CLIENT_SECRET_VAR; do
+for OIDC_VAR in \$oidc_authz_endpoint \$oidc_token_endpoint \$oidc_jwt_keyfile \$oidc_hmac_key $CLIENT_ID_VAR $CLIENT_SECRET_VAR $PKCE_ENABLE_VAR; do
 	# Pull the configuration value from the intermediate file
 	VALUE=`grep "^$OIDC_VAR " /tmp/${COMMAND}_$$_conf | cut -f2 -d' '`
 	echo -n "$COMMAND: NOTICE:  - $OIDC_VAR ..."
