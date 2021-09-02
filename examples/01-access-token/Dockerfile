@@ -83,8 +83,7 @@ RUN    chmod -R 777 /etc/nginx/conf.d
 
 EXPOSE 80
 EXPOSE 443
-EXPOSE 9090
-EXPOSE 8090
+EXPOSE 8010
 
 STOPSIGNAL SIGTERM
 CMD ["nginx", "-g", "daemon off;"]
