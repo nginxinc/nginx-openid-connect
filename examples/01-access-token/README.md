@@ -50,9 +50,11 @@ This directory provides the examples of NGINX configuration, Dockerfile and OIDC
 ## Access Web Page w/ NGINX OIDC
 - Open your web browser and connect to the URL like `https://mynginxoidc.aws/`.
 - Enter the user name and password that are registered in your IdP.
+
   ![](./img/idp_login.png)
 
 - Check if you could successfully find the following web page based on NGINX OIDC handshaking.
+
   ![](./img/nginx-oidc-access-token-page.png)
 
 
@@ -85,7 +87,8 @@ $ curl -iX DELETE localhost:8010/api/6/http/keyvals/oidc_access_tokens
 $ curl -iX DELETE localhost:8010/api/6/http/keyvals/refresh_tokens
 ```
 
-To check shared zones:
+**To check shared zones**:
+
 ![](./img/nginx-plus-shared-zones.png)
 
 
