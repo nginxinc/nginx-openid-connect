@@ -1,12 +1,13 @@
 # NGINX OpenID Connect - Access Token
 
-This directory provides the examples of NGINX configuration, Dockerfile and OIDC codebase that contain additional access token features by refactoring the [nginx-openid-connect](https://github.com/nginxinc/nginx-openid-connect).
+This directory provides the examples of [NGINX configuration](./conf/conf.d), [Dockerfile](./Dockerfile) and [OIDC codebase](./conf/conf.d/oidc.js) that contain additional access token features by refactoring the [nginx-openid-connect](https://github.com/nginxinc/nginx-openid-connect).
 
 ## Prerequisites
 - [Configure your IdP](https://github.com/nginxinc/nginx-openid-connect/#configuring-your-idp).
 - Prepare your certificates and update the followings if you want to enable SSL.
   - [./auxfiles/mysample.crt](./auxfiles/mysample.crt)
   - [./auxfiles/mysample.key](./auxfiles/mysample.key)
+  - The files would be copied into your Docker container if you update them.
   - You can manually configure `pem` file in the [frontend.conf](./conf/conf.d/frontend.conf) if you want.
 - Update OIDC configuration in your NGINX Plus config files:
   - [./conf/conf.d/frontend.conf](./conf/conf.d/frontend.conf)

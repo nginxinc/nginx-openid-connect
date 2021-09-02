@@ -1,2 +1,2 @@
-*.crt
-*.key
+nginx-repo.crt
+nginx-repo.key
