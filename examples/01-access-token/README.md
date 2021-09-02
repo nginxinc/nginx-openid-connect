@@ -35,9 +35,9 @@ Reference implementation of NGINX Plus as relying party for OpenID Connect authe
 
 - Create a container named my-apigw based on this image:
   ```bash
-  $ docker run  --name my-apigw --network my-net  \
-                -p 443:443 -p 8090:8090           \
-                --link my-idp:my-idp              \
+  $ docker run  --name my-apigw --network my-net              \
+                -p 80:80 -p 443:443 -p 9090:9090 -p 8090:8090 \
+                --link my-idp:my-idp                          \
                 -d nginxoidc
   ```
 

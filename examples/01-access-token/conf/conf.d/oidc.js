@@ -4,197 +4,253 @@
  * Copyright (C) 2021 Nginx, Inc.
  */
 
-// Constants for common error message.
-var ERR_CFG_VARS  = 'OIDC missing configuration variables: ';
-var ERR_AC_TOKEN  = 'OIDC Access Token validation error: ';
-var ERR_ID_TOKEN  = 'OIDC ID Token validation error: ';
-var ERR_IDP_AUTH  = 'OIDC unexpected response from IdP when sending AuthZ code (HTTP ';
-var ERR_TOKEN_RES = 'OIDC AuthZ code sent but token response is not JSON. ';
+// Constants for common error message. These will be cleaned up.
+var ERR_CFG_VARS     = 'OIDC missing configuration variables: ';
+var ERR_AC_TOKEN     = 'OIDC Access Token validation error: ';
+var ERR_ID_TOKEN     = 'OIDC ID Token validation error: ';
+var ERR_IDP_AUTH     = 'OIDC unexpected response from IdP when sending AuthZ code (HTTP ';
+var ERR_TOKEN_RES    = 'OIDC AuthZ code sent but token response is not JSON. ';
+var OK_REFRESH_TOKEN = 'OIDC refresh success, updating id_token for ';
+var MSG_REPLACE_REFRESH_TOKEN = 'OIDC replacing previous refresh token (';
 
 // Flag to check if there is still valid session cookie. It is used by auth()
 // and validateIdToken().
 var newSession = false; 
 
-// -------------------------------------------------------------------------- //
-//                                                                            //
-//           1. Export Functions: Called By `oidc_server.conf`.               //
-//                                                                            //
-// -------------------------------------------------------------------------- //
-export default {auth, codeExchange, validateIdToken, logout, validateAccessToken};
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                             *
+ *           1. Export Functions: Called By `oidc_server.conf`.                *
+ *                                                                             *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+export default {auth, codeExchange, validateIdToken, validateAccessToken, logout};
 
 // Start OIDC with either intializing new session or refershing token:
 //
-// 1. Initialize new session:
-//    - Check all necessary configuration variables (referenced only by NJS).
-//    - Redirect client to the IdP login page w/ the cookies we need for state.
+// 1. Start IdP authorization:
+//  - Check all necessary configuration variables (referenced only by NJS).
+//  - Redirect client to the IdP login page w/ the cookies we need for state.
 //
 // 2. Refresh ID / access token:
-//    - Pass the refresh token to the /_refresh location so that it can be
-//      proxied to the IdP in exchange for a new id_token and access_token.
+//  - Pass the refresh token to the /_refresh location so that it can be
+//    proxied to the IdP in exchange for a new id_token and access_token.
 //
-function auth(req) {
-    if (!req.variables.refresh_token || req.variables.refresh_token == '-') {
-        initNewSession(req);
+function auth(r) {
+    if (!r.variables.refresh_token || r.variables.refresh_token == '-') {
+        startIdPAuthZ(r);
         return;
     }
-    refershToken(req);
+    refershToken(r);
 }
 
 // Request OIDC token, and handle IDP response (error or successful token).
 // This function is called by the IdP after successful authentication:
 //
 // 1. Request OIDC token:
-//    - http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
-//    - Pass the AuthZ code to the /_token location so that it can be proxied to
-//      the IdP in exchange for a JWT.
+//  - http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+//  - Pass the AuthZ code to the /_token location so that it can be proxied to
+//    the IdP in exchange for a JWT.
 //
 // 2. Handle IDP response:
-//   1) Error Response:
-//    - https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
+//  1) Error Response:
+//   - https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
 //
-//   2) Successful Token Response:
-//    - https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse
+//  2) Successful Token Response:
+//   - https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse
 //
-function codeExchange(req) {
-    if (!isValidAuthZCode(req)) {
+function codeExchange(r) {
+    if (!isValidAuthZCode(r)) {
         return
     }
-    req.subrequest('/_token', idpClientAuth(req),
+    r.subrequest('/_token', getTokenArgs(r),
         function(res) {
-            var isErr = handleTokenErrorResponse(req, res)
+            var isErr = handleTokenErrorResponse(r, res)
             if (isErr) {
                 return
             }
-            handleSuccessfulTokenResponse(req, res)
+            handleSuccessfulTokenResponse(r, res)
         }
     );
 }
 
-// -------------------------------------------------------------------------- //
-//                                                                            //
-//                          2. Common Functions                               //
-//                                                                            //
-// -------------------------------------------------------------------------- //
+// Validate ID token which is received from IdP (fresh or refresh token):
+//
+// - https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+// - This function is called by the location of `_id_token_validation` which is
+//   called by either OIDC code exchange or refersh token request.
+// - The clients MUST validate the ID Token in the Token Response from the IdP.
+//
+function validateIdToken(r) {
+    missingClaims = []
+    if (r.variables.jwt_audience.length == 0) missingClaims.push('aud');
+    if (!isValidRequiredClaims(r, ERR_ID_TOKEN, missingClaims)) {
+        r.return(403);
+        return;
+    }
+    if (!isValidIatClaim(r, ERR_ID_TOKEN)) {
+        r.return(403);
+        return;
+    }
+    if (!isValidAudClaim(r, ERR_ID_TOKEN)) {
+        r.return(403);
+        return;
+    }
+    if (!isValidNonceClaim(r, ERR_ID_TOKEN)) {
+        r.return(403);
+        return;
+    }
+    r.return(204);
+}
 
-// Initialize new session.
+// Validate access token:
+//
+// - https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowTokenValidation
+// - https://openid.net/specs/openid-connect-core-1_0.html#ImplicitTokenValidation
+// - This function is called by the location of `_access_token_validation` which
+//   is called by either OIDC code exchange or refersh token request.
+// - The 'aud' claim isn't contained in general ID token from Amazon Cognito,
+//   although we can add it. Hence, the claim isn't part of this validation.
+//
+function validateAccessToken(r) {
+    missingClaims = []
+    if (!isValidRequiredClaims(r, ERR_AC_TOKEN, missingClaims)) {
+        r.return(403);
+        return;
+    }
+    if (!isValidIatClaim(r, ERR_AC_TOKEN)) {
+        r.return(403);
+        return;
+    }
+    r.return(204);
+}
+
+function logout(r) {
+    r.log('OIDC logout for ' + r.variables.cookie_auth_token);
+    r.variables.session_jwt   = '-';
+    r.variables.access_token  = '-';
+    r.variables.refresh_token = '-';
+    r.return(302, r.variables.oidc_logout_redirect);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                             *
+ *                          2. Common Functions                                *
+ *                                                                             *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+// Start Identity Provider (IdP) authorization:
+//
 // - Check all necessary configuration variables (referenced only by NJS).
-// - redirect the client to the IdP login page w/ the cookies we need for state.
-function initNewSession(req) {
+// - Redirect the client to the IdP login page w/ the cookies we need for state.
+//
+function startIdPAuthZ(r) {
     newSession = true;
 
     var configs = ['authz_endpoint', 'scopes', 'hmac_key', 'cookie_flags'];
     var missingConfig = [];
     for (var i in configs) {
-        var oidcCfg = req.variables['oidc_' + configs[i]]
+        var oidcCfg = r.variables['oidc_' + configs[i]]
         if (!oidcCfg || oidcCfg == '') {
             missingConfig.push(configs[i]);
         }
     }
     if (missingConfig.length) {
-        req.error(ERR_CFG_VARS + '$oidc_' + missingConfig.join(' $oidc_'));
-        req.return(500, r.variables.internal_error_message);
+        r.error(ERR_CFG_VARS + '$oidc_' + missingConfig.join(' $oidc_'));
+        r.return(500, r.variables.internal_error_message);
         return;
     }
-    req.return(302, req.variables.oidc_authz_endpoint + getAuthZArgs(req));
+    r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
 }
 
-// Handle error response regarding the referesh token received from IDP.
-// - If the Refresh Request is invalid or unauthorized, the AuthZ Server
-//   returns the Token Error Response as defined in OAuth 2.0 [RFC6749].
+// Handle error response regarding the referesh token received from IDP:
+//
 // - https://openid.net/specs/openid-connect-core-1_0.html#RefreshErrorResponse
-function handleRefershErrorResponse(req, res) {
-    var msg = "OIDC refresh failure";
+// - If the Refresh Request is invalid or unauthorized, the AuthZ Server returns
+//   the Token Error Response as defined in OAuth 2.0 [RFC6749].
+//
+function handleRefershErrorResponse(r, res) {
+    var msg = 'OIDC refresh failure';
     switch(res.status) {
         case 504:
-            msg += ", timeout waiting for IdP";
+            msg += ', timeout waiting for IdP';
             break;
         case 400:
             try {
                 var errset = JSON.parse(res.responseBody);
-                msg += ": " + errset.error + " " + errset.error_description;
+                msg += ': ' + errset.error + ' ' + errset.error_description;
             } catch (e) {
-                msg += ": " + res.responseBody;
+                msg += ': ' + res.responseBody;
             }
             break;
         default:
-            msg += " "  + res.status;
+            msg += ' '  + res.status;
     }
-    req.error(msg);
-    clearRefreshTokenAndReturnErr(req);
+    r.error(msg);
+    clearRefreshTokenAndReturnErr(r);
 }
 
 // Clear refersh token, and respond token error.
 function clearRefreshTokenAndReturnErr(r) {
-    r.variables.refresh_token = "-";
+    r.variables.refresh_token = '-';
     r.return(302, r.variables.request_uri);
 }
 
 // Handle successful response regarding the referesh token.
 //
 // - https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokenResponse
-// - Upon successful validation of the Refresh Token, the response body is the
-//   Token Response of Section 3.1.3.3 except that it might not contain an id_token.
+// - Upon successful validation of Refresh Token, the response body is the Token
+//   Response of Section 3.1.3.3 except that it might not contain an id_token.
 // - Successful Token Response except that it might not contain an id_token.
 //
-function handleSuccessfulRefreshResponse(r, tokenset) {
-    if (!tokenset.id_token) {
-        r.error("OIDC refresh response did not include id_token");
-        if (tokenset.error) {
-            r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
+function handleSuccessfulRefreshResponse(r, res) {
+    try {
+        var tokenset = JSON.parse(res.responseBody);
+        var isErr = isValidTokenSet(r, tokenset);
+        if (isErr) {
+            clearRefreshTokenAndReturnErr(r);
+            return;
         }
+
+        // Update opaque ID token and access token to key/value store.
+        r.variables.session_jwt  = tokenset.id_token;
+        r.variables.access_token = tokenset.access_token;
+
+        // Update new refresh token to key/value store if we got a new one.
+        r.log(OK_REFRESH_TOKEN + r.variables.cookie_auth_token);
+        if (r.variables.refresh_token != tokenset.refresh_token) {
+            r.log(MSG_REPLACE_REFRESH_TOKEN + r.variables.refresh_token + 
+                    ') with new value: ' + tokenset.refresh_token);
+            r.variables.refresh_token = tokenset.refresh_token;
+        }
+
+        // Remove the evidence of original failed `auth_jwt`, and continue to
+        // process the original request.
+        delete r.headersOut['WWW-Authenticate'];
+        r.internalRedirect(r.variables.request_uri);
+    } catch (e) {
         clearRefreshTokenAndReturnErr(r);
-        return;
     }
-
-    // Send the new ID Token to auth_jwt location for validation
-    r.subrequest("/_id_token_validation", "token=" + tokenset.id_token,
-        function(res) {
-            if (res.status != 204) {
-                clearRefreshTokenAndReturnErr(r);
-                return;
-            }
-
-            // ID Token is valid, update keyval
-            r.log("OIDC refresh success, updating id_token for " + r.variables.cookie_auth_token);
-            r.variables.session_jwt = tokenset.id_token; // Update key-value store
-
-            // Update refresh token (if we got a new one)
-            if (r.variables.refresh_token != tokenset.refresh_token) {
-                r.log("OIDC replacing previous refresh token (" + r.variables.refresh_token + ") with new value: " + tokenset.refresh_token);
-                r.variables.refresh_token = tokenset.refresh_token; // Update key-value store
-            }
-
-            delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
-            r.internalRedirect(r.variables.request_uri); // Continue processing original request
-        }
-    );
 }
 
 // Pass the refresh token to the /_refresh location so that it can be proxied to
 // the IdP in exchange for a new id_token and access_token.
 //
 // 1. Request refresh token:
-// - https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
-// - To refresh an Access Token, the Client MUST authenticate to the Token
-//   Endpoint using the authentication method registered for its client_id.
+//  - https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+//  - To refresh an Access Token, the Client MUST authenticate to the Token
+//    Endpoint using the authentication method registered for its client_id.
 //
 // 2. Handle IDP response(error or successful refresh token):
-// - https://openid.net/specs/openid-connect-core-1_0.html#RefreshErrorResponse
-// - https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokenResponse
+//  - https://openid.net/specs/openid-connect-core-1_0.html#RefreshErrorResponse
+//  - https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokenResponse
 //
 function refershToken(r) {
-    r.subrequest("/_refresh", "token=" + r.variables.refresh_token, respHandler);
+    r.subrequest('/_refresh', 'token=' + r.variables.refresh_token, respHandler);
     function respHandler(res) {
         if (res.status != 200) {
             handleRefershErrorResponse(r, res);
             return;
         }
-        try {
-            var tokenset = JSON.parse(res.responseBody);
-            handleSuccessfulRefreshResponse(r, tokenset);
-        } catch (e) {
-            clearRefreshTokenAndReturnErr(r);
-        }
+        handleSuccessfulRefreshResponse(r, res);
     }
 }
 
@@ -206,26 +262,26 @@ function refershToken(r) {
 // - The HTTP response body uses the application/json media type with HTTP 
 //   response code of 400.
 //
-function handleTokenErrorResponse(req, res) {
+function handleTokenErrorResponse(r, res) {
     var isErr = true
     if (res.status == 504) {
-        req.error('OIDC timeout connecting to IdP when sending AuthZ code');
-        req.return(504);
+        r.error('OIDC timeout connecting to IdP when sending AuthZ code');
+        r.return(504);
         return isErr;
     }
     if (res.status != 200) {
         try {
             var errset = JSON.parse(res.responseBody);
             if (errset.error) {
-                req.error('OIDC error from IdP when sending AuthZ code: ' +
+                r.error('OIDC error from IdP when sending AuthZ code: ' +
                     errset.error + ', ' + errset.error_description);
             } else {
-                req.error(ERR_IDP_AUTH + res.status + '). ' + res.responseBody);
+                r.error(ERR_IDP_AUTH + res.status + '). ' + res.responseBody);
             }
         } catch (e) {
-            req.error(ERR_IDP_AUTH + res.status + '). ' + res.responseBody);
+            r.error(ERR_IDP_AUTH + res.status + '). ' + res.responseBody);
         }
-        req.return(502);
+        r.return(502);
         return isErr;
     }
     return !isErr;
@@ -241,191 +297,110 @@ function handleTokenErrorResponse(req, res) {
 function handleSuccessfulTokenResponse(r, res) {
     try {
         var tokenset = JSON.parse(res.responseBody);
-        if (tokenset.error) {
-            r.error('OIDC ' + tokenset.error + ' ' + tokenset.error_description);
-            r.return(500);
-            return;
+        var isErr = isValidTokenSet(r, tokenset);
+        if (isErr) {
+             r.return(500);
+             return;
         }
 
-        // Send the ID Token to auth_jwt location for validation
-        r.subrequest('/_id_token_validation', 'token=' + tokenset.id_token,
-            function(res) {
-                if (res.status != 204) {
-                    r.return(500); // validateIdToken() will log errors
-                    return;
-                }
+        // Add opaque ID token and access token to key/value store
+        r.variables.new_session      = tokenset.id_token;
+        r.variables.new_access_token = tokenset.access_token;
 
-                // If the response includes a refresh token then store it
-                if (tokenset.refresh_token) {
-                    r.variables.new_refresh = tokenset.refresh_token; // Create key-value store entry
-                    r.log('OIDC refresh token stored');
-                } else {
-                    r.warn('OIDC no refresh token');
-                }
+        // Add new refresh token to key/value store
+        if (tokenset.refresh_token) {
+            r.variables.new_refresh = tokenset.refresh_token;
+            r.log('OIDC refresh token stored');
+        } else {
+            r.warn('OIDC no refresh token');
+        }
 
-                // Add opaque token to keyval session store
-                r.log('OIDC success, creating session ' + r.variables.request_id);
-                r.variables.new_session = tokenset.id_token;        // Create key-value store entry
-                r.variables.new_access_token = tokenset.access_token;
-                r.headersOut['Set-Cookie'] = 'auth_token=' + r.variables.request_id + '; ' + r.variables.oidc_cookie_flags;
-                r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
-            }
-        );
+        // Set cookie with request ID that is the key of each ID/access token,
+        // and continue to process the original request.
+        r.log('OIDC success, creating session '    + r.variables.request_id);
+        r.headersOut['Set-Cookie'] = 'auth_token=' + r.variables.request_id + 
+                                     '; ' + r.variables.oidc_cookie_flags;
+        r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
     } catch (e) {
         r.error(ERR_TOKEN_RES + res.responseBody);
         r.return(502);
     }
 }
 
-function validateIdToken(r) {
-    // Check mandatory claims, and 'aud' is separately checked.
-    var required_claims = ['iat', 'iss', 'sub'];
-    var missing_claims = [];
-    for (var i in required_claims) {
-        if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
-            missing_claims.push(required_claims[i]);
+// Check if token is valid using `auth_jwt` directives and Node.JS functions.
+//
+// - ID     token validation: uri('_id_token_validation'    )
+// - Access token validation: uri('_access_token_validation')
+//
+function isValidToken(r, uri, token) {
+    var isValid = true
+    r.subrequest(uri, 'token=' + token, function(res) {
+        if (res.status != 204) {
+            isValid = false
         }
-    }
-    if (r.variables.jwt_audience.length == 0) missing_claims.push('aud');
-    if (missing_claims.length) {
-        r.error(ERR_ID_TOKEN + 'missing claim(s) ' + missing_claims.join(' '));
-        r.return(403);
-        return;
-    }
-    var validToken = true;
-
-    // Check iat is a positive integer
-    var iat = Math.floor(Number(r.variables.jwt_claim_iat));
-    if (String(iat) != r.variables.jwt_claim_iat || iat < 1) {
-        r.error(ERR_ID_TOKEN + 'iat claim is not a valid number');
-        validToken = false;
-    }
-
-    // Audience matching
-    var aud = r.variables.jwt_audience.split(',');
-    if (!aud.includes(r.variables.oidc_client)) {
-        r.error(ERR_ID_TOKEN + 'aud claim (' + r.variables.jwt_audience +
-            ') does not include configured $oidc_client (' + 
-            r.variables.oidc_client + ')');
-        validToken = false;
-    }
-
-    // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
-    // to check that the JWT can be validated as being directly related to the
-    // original request by this client. This mitigates against token replay attacks.
-    if (newSession) {
-        var client_nonce_hash = '';
-        if (r.variables.cookie_auth_nonce) {
-            var c = require('crypto');
-            var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(r.variables.cookie_auth_nonce);
-            client_nonce_hash = h.digest('base64url');
-        }
-        if (r.variables.jwt_claim_nonce != client_nonce_hash) {
-            r.error('OIDC ID Token validation error: nonce from token (' + r.variables.jwt_claim_nonce + ') does not match client (' + client_nonce_hash + ')');
-            validToken = false;
-        }
-    }
-
-    if (validToken) {
-        r.return(204);
-    } else {
-        r.return(403);
-    }
+    });
+    return isValid;
 }
 
-function logout(r) {
-    r.log('OIDC logout for ' + r.variables.cookie_auth_token);
-    r.variables.session_jwt   = '-';
-    r.variables.access_token  = '-';
-    r.variables.refresh_token = '-';
-    r.return(302, r.variables.oidc_logout_redirect);
-}
-
+// Generate cookie and query parameters using the OIDC config in the nginx.conf:
+//
+// - Both are used when calling the API endpoint of IdP authorization for the
+//   first time when starting Open ID Connect handshaking.
+// - Choose a nonce for this flow for the client, and hash it for the IdP.
+//
 function getAuthZArgs(r) {
-    // Choose a nonce for this flow for the client, and hash it for the IdP
     var noncePlain = r.variables.request_id;
     var c = require('crypto');
     var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
-    var nonceHash = h.digest('base64url');
-    var authZArgs = '?response_type=code&scope=' + r.variables.oidc_scopes + '&client_id=' + r.variables.oidc_client + '&redirect_uri='+ r.variables.redirect_base + r.variables.redir_location + '&nonce=' + nonceHash;
+    var nonceHash   = h.digest('base64url');
+    var redirectURI = r.variables.redirect_base + r.variables.redir_location;
+    var authZArgs   = '?response_type=code&scope=' + r.variables.oidc_scopes +
+                      '&client_id='                + r.variables.oidc_client + 
+                      '&redirect_uri='             + redirectURI + 
+                      '&nonce='                    + nonceHash;
 
+    var cookieFlags = r.variables.oidc_cookie_flags;
     r.headersOut['Set-Cookie'] = [
-        'auth_redir=' + r.variables.request_uri + '; ' + r.variables.oidc_cookie_flags,
-        'auth_nonce=' + noncePlain + '; ' + r.variables.oidc_cookie_flags
+        'auth_redir=' + r.variables.request_uri + '; ' + cookieFlags,
+        'auth_nonce=' + noncePlain + '; ' + cookieFlags
     ];
 
-    if ( r.variables.oidc_pkce_enable == 1 ) {
-        var pkce_code_verifier  = c.createHmac('sha256', r.variables.oidc_hmac_key).update(String(Math.random())).digest('hex');
-        r.variables.pkce_id     = c.createHash('sha256').update(String(Math.random())).digest('base64url');
-        var pkce_code_challenge = c.createHash('sha256').update(pkce_code_verifier).digest('base64url');
+    if (r.variables.oidc_pkce_enable == 1) {
+        var pkce_code_verifier  = c.createHmac('sha256', r.variables.oidc_hmac_key).
+                                    update(randomStr()).digest('hex');
+        r.variables.pkce_id     = c.createHash('sha256').
+                                    update(randomStr()).digest('base64url');
+        var pkce_code_challenge = c.createHash('sha256').
+                                    update(pkce_code_verifier).digest('base64url');
         r.variables.pkce_code_verifier = pkce_code_verifier;
 
-        authZArgs += '&code_challenge_method=S256&code_challenge=' + pkce_code_challenge + '&state=' + r.variables.pkce_id;
+        authZArgs += '&code_challenge_method=S256&code_challenge=' + 
+                     pkce_code_challenge + '&state=' + r.variables.pkce_id;
     } else {
         authZArgs += '&state=0';
     }
     return authZArgs;
 }
 
-function idpClientAuth(r) {
-    // If PKCE is enabled we have to use the code_verifier
-    if ( r.variables.oidc_pkce_enable == 1 ) {
-        r.variables.pkce_id = r.variables.arg_state;
-        return 'code=' + r.variables.arg_code + '&code_verifier=' + r.variables.pkce_code_verifier;
-    } else {
-        return 'code=' + r.variables.arg_code + '&client_secret=' + r.variables.oidc_client_secret;
-    }   
+// Generate and return random string
+function randomStr() {
+    return String(Math.random())
 }
 
-function validateAccessToken(r) {
-    // Check mandatory claims
-    var required_claims = ["iat", "iss", "sub"];
-    var missing_claims  = [];
-    for (var i in required_claims) {
-        if (r.variables["jwt_claim_" + required_claims[i]].length == 0 ) {
-            missing_claims.push(required_claims[i]);
-            r.log("### missing claims " + required_claims[i])
-        }
-        r.log("### claims " + r.variables["jwt_claim_" + required_claims[i]])
-    }
-    if (r.variables.jwt_audience.length == 0) missing_claims.push("aud");
-    if (missing_claims.length) {
-        r.error(ERR_AC_TOKEN + "missing claim(s) " + missing_claims.join(" "));
-        r.return(403);
-        return;
-    }
-    var validToken = true;
-
-    // Check iat is a positive integer
-    var iat = Math.floor(Number(r.variables.jwt_claim_iat));
-    if (String(iat) != r.variables.jwt_claim_iat || iat < 1) {
-        r.error(ERR_AC_TOKEN + "iat claim is not a valid number");
-        validToken = false;
-    }
-
-    // If we receive a nonce in the Access Token then we will use the auth_nonce
-    // cookies to check that the JWT can be validated as being directly related 
-    // to the original request by this client. 
-    // 
-    // This mitigates against token replay attacks.
-    if (newSession) {
-        var client_nonce_hash = "";
-        if (r.variables.cookie_auth_nonce) {
-            var c = require('crypto');
-            var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(r.variables.cookie_auth_nonce);
-            client_nonce_hash = h.digest('base64url');
-        }
-        if (r.variables.jwt_claim_nonce != client_nonce_hash) {
-            r.error(ERR_AC_TOKEN + "nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
-            validToken = false;
-        }
-    }
-
-    if (validToken) {
-        r.return(204);
+// Set PKCE ID and generate query parameters for OIDC token endpoint:
+//
+// - If PKCE is enabled, then we have to use the code_verifier.
+// - Otherwise, we use client secret.
+//
+function getTokenArgs(r) {
+    if (r.variables.oidc_pkce_enable == 1) {
+        r.variables.pkce_id = r.variables.arg_state;
+        return 'code=' + r.variables.arg_code + 
+               '&code_verifier=' + r.variables.pkce_code_verifier;
     } else {
-        r.return(403);
-    }
+        return 'code=' + r.variables.arg_code + 
+               '&client_secret=' + r.variables.oidc_client_secret;
+    }   
 }
 
 // Validate authorization code if it is correctly received from the IdP.
@@ -441,4 +416,114 @@ function isValidAuthZCode(r) {
         return false;
     }
     return true;
+}
+
+// Validate 'iat' claim to see if it is valid:
+//
+// - Check if `iat` is a positive integer.
+// - TODO if needed:
+//   + It can be used to reject tokens that were issued too far away from
+//     the current time, limiting the amount of time that nonces need to be
+//     stored to prevent attacks. The acceptable range is Client specific.
+//
+function isValidIatClaim(r, msgPrefix) {
+    var iat = Math.floor(Number(r.variables.jwt_claim_iat));
+    if (String(iat) != r.variables.jwt_claim_iat || iat < 1) {
+        r.error(msgPrefix + 'iat claim is not a valid number');
+        return false;
+    }
+    return true;
+}
+
+// Validate 'aud (audience)' claim to see if it is valid:
+//
+// - The client MUST validate that `aud` claim contains its client_id value
+//   registered at the Issuer identified by `iss` claim as an audience.
+// - The ID Token MUST be rejected if the ID Token does not list the client
+//   as a valid audience, or if it contains additional audiences not trusted
+//   by the client.
+//
+function isValidAudClaim(r, msgPrefix) {
+    var aud = r.variables.jwt_audience.split(',');
+    if (!aud.includes(r.variables.oidc_client)) {
+        r.error(msgPrefix + 'aud claim (' + r.variables.jwt_audience +
+            ') does not include configured $oidc_client (' + 
+            r.variables.oidc_client + ')');
+            return false;
+    }
+    return true;
+}
+
+// Validate `nonce` claim to mitigate replay attacks:
+//
+// - nonce: a string value used to associate a client session & an ID token. 
+//   The value is used to mitigate replay attacks and is present only if 
+//   passed during the authorization request.
+// - If we receive a nonce in the ID Token then we will use the auth_nonce 
+//   cookies to check that JWT can be validated as being directly related to
+//   the original request by this client. 
+function isValidNonceClaim(r, msgPrefix) {
+    if (newSession) {
+        var clientNonceHash = '';
+        if (r.variables.cookie_auth_nonce) {
+            var c = require('crypto');
+            var h = c.createHmac('sha256', r.variables.oidc_hmac_key).
+                        update(r.variables.cookie_auth_nonce);
+            clientNonceHash = h.digest('base64url');
+        }
+        if (r.variables.jwt_claim_nonce != clientNonceHash) {
+            r.error(ERR_ID_TOKEN + 'nonce from token (' + 
+                r.variables.jwt_claim_nonce + ') does not match client (' + 
+                clientNonceHash + ')');
+            return false;
+        }
+    }
+    return true;
+}
+
+// Validate if received token from the IdP contains mandatory claims.
+//
+// - For ID     token: 'iat', 'iss', 'sub', 'aud'
+// - For Access token: 'iat', 'iss', 'sub'
+// - Given the RFC7519, the above claims are OPTIONAL. But, we validate them
+//   as required claims for several purposes such as mitigating replay attacks.
+//
+function isValidRequiredClaims(r, msgPrefix, missingClaims) {
+    var required_claims = ['iat', 'iss', 'sub'];
+    for (var i in required_claims) {
+        if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
+            missingClaims.push(required_claims[i]);
+        }
+    }
+    if (missingClaims.length) {
+        r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
+        return false;
+    }
+    return True
+}
+
+// Check if (fresh or refersh) token set (ID token, access token) is valid.
+function isValidTokenSet(r, tokenset) {
+    var isErr = true;
+    if (tokenset.error) {
+        r.error('OIDC ' + tokenset.error + ' ' + tokenset.error_description);
+        return isErr;
+    }
+    if (!tokenset.id_token) {
+        r.error('OIDC response did not include id_token');
+        return isErr;
+    }
+    if (!tokenset.access_token) {
+        r.error('OIDC response did not include access_token');
+        return isErr;
+    }
+    if (!isValidToken(r, '/_id_token_validation', tokenset.id_token)) {
+        // The validateIdToken() logs error so that r.error() isn't used.
+        return isErr;
+    }
+    if (!isValidToken(r, '/_access_token_validation', tokenset.access_token)) {
+        // The validateAccessToken() logs error so that r.error() isn't used.
+        return isErr;
+    }
+    return !isErr;
 }
