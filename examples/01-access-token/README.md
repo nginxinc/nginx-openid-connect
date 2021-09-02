@@ -91,5 +91,4 @@ To check shared zones:
 
 ## Reference
 - [NGINX OpenID Connect](https://github.com/shawnhankim/nginx-openid-connect)
-- [Keycloak on Docker](https://www.keycloak.org/getting-started/getting-started-docker)
 - [Enabling Single Sign-On for Proxied Applications](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/)
