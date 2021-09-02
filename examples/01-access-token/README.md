@@ -48,7 +48,7 @@ This directory provides the examples of NGINX configuration, Dockerfile and OIDC
 
 
 ## Access Web Page w/ NGINX OIDC
-- Open your web browser and access with the URL like `https://mynginxoidc.aws/`.
+- Open your web browser and connect to the URL like `https://mynginxoidc.aws/`.
 - Enter the user name and password that are registered in your IdP.
   ![](./img/idp_login.png)
 
@@ -61,24 +61,24 @@ The [NGINX Plus API](http://nginx.org/en/docs/http/ngx_http_api_module.html) is 
 
 It is also defined in status-api.conf for you to easily check the status without additional certs arguments in the API request via `curl`.
 
-To query the current ID Tokens in the key-value store:
+**To query the current ID Tokens** in the key-value store:
 ```
 $ curl localhost:8010/api/6/http/keyvals/oidc_id_tokens
 ```
 
-To query the current Access Tokens in the key-value store:
+**To query the current Access Tokens** in the key-value store:
 ```
 $ curl localhost:8010/api/6/http/keyvals/oidc_access_tokens
 ```
 
-To delete a single session:
+**To delete a single session**:
 ```
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/oidc_id_tokens
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/oidc_access_tokens
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/refresh_tokens
 ```
 
-To delete all sessions:
+**To delete all sessions**:
 ```
 $ curl -iX DELETE localhost:8010/api/6/http/keyvals/oidc_id_tokens
 $ curl -iX DELETE localhost:8010/api/6/http/keyvals/oidc_access_tokens
