@@ -42,8 +42,10 @@ This directory provides the examples of [NGINX configuration](./conf/conf.d), [D
 
 - Create and run a container named my-nginx based on this image:
   ```bash
-  $ docker run  --name my-nginx                  \
-                -p 80:80 -p 443:443 -p 8010:8010 \
+  $ NGINX_CONF_PATH=/Users/{your user name}/{your github path}/nginx-openid-connect/examples/01-access-token/conf/conf.d
+  $ docker run  --name my-nginx                       \
+                -p 80:80 -p 443:443 -p 8010:8010      \
+                -v $NGINX_CONF_PATH:/etc/nginx/conf.d \
                 -d nginxoidc
   ```
 

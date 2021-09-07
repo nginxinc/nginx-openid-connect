@@ -80,7 +80,7 @@ function codeExchange(r) {
 // - The clients MUST validate the ID Token in the Token Response from the IdP.
 //
 function validateIdToken(r) {
-    missingClaims = []
+    var missingClaims = []
     if (r.variables.jwt_audience.length == 0) missingClaims.push('aud');
     if (!isValidRequiredClaims(r, ERR_ID_TOKEN, missingClaims)) {
         r.return(403);
@@ -111,7 +111,7 @@ function validateIdToken(r) {
 //   although we can add it. Hence, the claim isn't part of this validation.
 //
 function validateAccessToken(r) {
-    missingClaims = []
+    var missingClaims = []
     if (!isValidRequiredClaims(r, ERR_AC_TOKEN, missingClaims)) {
         r.return(403);
         return;
@@ -194,7 +194,7 @@ function clearRefreshTokenAndReturnErr(r) {
     r.return(302, r.variables.request_uri);
 }
 
-// Handle successful response regarding the referesh token.
+// Handle successful response regarding the referesh token:
 //
 // - https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokenResponse
 // - Upon successful validation of Refresh Token, the response body is the Token
@@ -232,7 +232,7 @@ function handleSuccessfulRefreshResponse(r, res) {
 }
 
 // Pass the refresh token to the /_refresh location so that it can be proxied to
-// the IdP in exchange for a new id_token and access_token.
+// the IdP in exchange for a new id_token and access_token:
 //
 // 1. Request refresh token:
 //  - https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
@@ -327,10 +327,10 @@ function handleSuccessfulTokenResponse(r, res) {
     }
 }
 
-// Check if token is valid using `auth_jwt` directives and Node.JS functions.
+// Check if token is valid using `auth_jwt` directives and Node.JS functions:
 //
-// - ID     token validation: uri('_id_token_validation'    )
-// - Access token validation: uri('_access_token_validation')
+// - ID     token validation: uri('/_id_token_validation'    )
+// - Access token validation: uri('/_access_token_validation')
 //
 function isValidToken(r, uri, token) {
     var isValid = true
@@ -481,7 +481,7 @@ function isValidNonceClaim(r, msgPrefix) {
     return true;
 }
 
-// Validate if received token from the IdP contains mandatory claims.
+// Validate if received token from the IdP contains mandatory claims:
 //
 // - For ID     token: 'iat', 'iss', 'sub', 'aud'
 // - For Access token: 'iat', 'iss', 'sub'
@@ -499,7 +499,7 @@ function isValidRequiredClaims(r, msgPrefix, missingClaims) {
         r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
         return false;
     }
-    return True
+    return true
 }
 
 // Check if (fresh or refersh) token set (ID token, access token) is valid.
