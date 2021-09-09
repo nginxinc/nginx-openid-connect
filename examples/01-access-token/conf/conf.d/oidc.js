@@ -341,6 +341,9 @@ function handleSuccessfulTokenResponse(r, res) {
 // - Access token validation: uri('/_access_token_validation')
 //
 function isValidToken(r, uri, token) {
+    if (!token) {
+        return false
+    }
     var isValid = true
     r.subrequest(uri, 'token=' + token, function(res) {
         if (res.status != 204) {
@@ -498,14 +501,19 @@ function isValidNonceClaim(r, msgPrefix) {
 //
 function isValidRequiredClaims(r, msgPrefix, missingClaims) {
     var required_claims = ['iat', 'iss', 'sub'];
-    for (var i in required_claims) {
-        if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
-            missingClaims.push(required_claims[i]);
+    try {
+        for (var i in required_claims) {
+            if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
+                missingClaims.push(required_claims[i]);
+            }
         }
-    }
-    if (missingClaims.length) {
-        r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
-        return false;
+        if (missingClaims.length) {
+            r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
+            return false;
+        }
+    } catch (e) {
+        r.error("required claims or missing claims do not exist.")
+        return false
     }
     return true
 }
@@ -550,12 +558,14 @@ function testExtractBearerToken (r) {
         var authZ = r.headersIn['Authorization'].split(' ');
         if (authZ[0] === 'Bearer') {
             if (!isValidToken(r, '/_access_token_validation', authZ[1])) {
-                msg += `, "access_token": "invalid"`;
+                msg += `, "token": "invalid"}\n`;
+                r.return(401, msg);
+                return
             } else {
-                msg += `, "access_token": "` + authZ[1] + `"`;
+                msg += `, "token": "` + authZ[1] + `"`;
             }
         } else {
-            msg += `, "access_token": "N/A"`;
+            msg += `, "token": "N/A"`;
         }
     } catch (e) {
         msg += `, "authorization in header": "N/A"`;

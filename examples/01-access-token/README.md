@@ -94,6 +94,21 @@ $ curl -iX DELETE localhost:8010/api/6/http/keyvals/refresh_tokens
 
 ![](./img/nginx-plus-shared-zones.png)
 
+## Call Proxied Backend Service w/ Access Token
+
+**To call proxied API w/ bearer access token from cookie via browser:**
+- Prerequisite: Login first through your IdP.
+- Call one of your APIs like `https://{hostname}/v1/api/2`:
+  ![](./img/call-api-w-token-in-ui.png)
+
+**To call proxied API w/ bearer access token without cookie via CURL:**
+- Find your access token and store it to `sample.jwt`.
+  ```
+  $ curl -H "Authorization: Bearer `cat sample.jwt`" -k -v https://{hostname}/v1/api/3
+  {"uri":/v1/api/3, "token": "xxx.xxxx.xxxx"}
+  ```
+- If you could find `token` value like `"token": "xxx.xxxx.xxxx"` in the response, it means the token is successfully passed in the header of API endpoint of proxied backend service.
+
 
 ## Reference
 - [NGINX OpenID Connect](https://github.com/shawnhankim/nginx-openid-connect)
