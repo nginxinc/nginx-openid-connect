@@ -4,9 +4,9 @@ This directory provides the examples of [NGINX configuration](./conf/conf.d), [D
 
 ## Prerequisites
 - [Configure your IdP](https://github.com/nginxinc/nginx-openid-connect/#configuring-your-idp).
-- Prepare **your certificates** and update the following certs which are invalid if you want to enable SSL.
-  - [./auxfiles/mysample.crt](./auxfiles/mysample.crt)
-  - [./auxfiles/mysample.key](./auxfiles/mysample.key)
+- Generate **your certificates** like the following path and files if you want to enable SSL.
+  - [./auxfiles/mysample.crt](./auxfiles/my-sample.crt)
+  - [./auxfiles/mysample.key](./auxfiles/my-sample.key)
   - The files would be copied into your Docker container if you update them.
   - You can manually configure `pem` file in the [frontend.conf](./conf/conf.d/frontend.conf) if you want.
 - Update OIDC configuration in your NGINX Plus config files:
