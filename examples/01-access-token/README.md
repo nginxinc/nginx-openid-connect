@@ -4,7 +4,7 @@ This directory provides the examples of [NGINX configuration](./conf/conf.d), [D
 
 ## Prerequisites
 - [Configure your IdP](https://github.com/nginxinc/nginx-openid-connect/#configuring-your-idp).
-- Prepare your certificates and update the followings if you want to enable SSL.
+- Prepare **your certificates** and update the following certs which are invalid if you want to enable SSL.
   - [./auxfiles/mysample.crt](./auxfiles/mysample.crt)
   - [./auxfiles/mysample.key](./auxfiles/mysample.key)
   - The files would be copied into your Docker container if you update them.
