@@ -2,11 +2,13 @@
 
 This directory provides the examples of [NGINX configuration](./build-context/nginx/conf.d), [Dockerfile](./docker/nginxplus-debian/Dockerfile) and [OIDC codebase](./build-context/nginx/conf.d/oidc.js) that contain enhanced features such as additional access token, user information and log-in/out by refactoring the [nginx-openid-connect](https://github.com/nginxinc/nginx-openid-connect).
 
+
 ## Prerequisites
 Let's find [this guideline](./docs/prerequisites.md) to check what to configure prior to executing your NGINX Plus for testing OIDC:
 
 
-## Local NGINX Plus Setup
+## Set Up Local NGINX Plus Docker
+Let's set up your local environment for testing OIDC workflows based on NGINX Plus docker container as follows.
 
 **Create a Docker image called `nginxplus-oidc-debian`**:
 ```
@@ -19,7 +21,7 @@ $ docker system prune -a && \
   docker volume rm $(docker volume ls -qf dangling=true)
 ```
 
-**Create and run a container named my-nginx based on this image:**
+**Run a Docker container based on the image:**
 ```bash
 $ NGINX_CONF_PATH=/Users/{your user name}/{your github path}/nginx-openid-connect/examples/context/nginx/conf.d
 $ docker-compose up -d
@@ -31,17 +33,17 @@ $ docker-compose down
 ```
 
 ## Test OIDC Use Cases
-You could find how to locally test OIDC use case based on local testing Docker environment as the following table.
+You could find how to locally test OIDC use cases as the following table.
 
-Use Case                        | How To Test
+Use Cases                       | How To Test
 --------------------------------|-----------------------------------------------
-Access Web Page with OIDC       | [How to access web page based on OIDC workflow](./use-case/01-access-web-and-tokens/README.md#access-web-page-with-nginx-oidc)
-ID & Access Token               | [How to retrieve ID / Access token from the IdP](./use-case/01-access-web-and-tokens/README.md#query-current-sessions)
-Access Token to Proxied Backend | [How to pass access token to proxied backend](./use-case/01-access-web-and-tokens/README.md#vall-proxied-backend-service-with-access-token)
-User Information                | How to retrieve user info from the IdP using the access token (TBD).
-Login                           | How to login (TBD).
-Logout                          | How to logout (TBD).
-Refresh Token                   | How to retrieve ID / Access token via refresh token (TBD).
+Access Web Page with OIDC       | [Access web page based on OIDC workflow](./use-case/01-access-web-and-tokens/README.md#access-web-page-with-nginx-oidc)
+ID & Access Token               | [Retrieve ID / Access token from the IdP](./use-case/01-access-web-and-tokens/README.md#query-current-sessions)
+Access Token to Proxied Backend | [Pass bearer access token to proxied backend](./use-case/01-access-web-and-tokens/README.md#vall-proxied-backend-service-with-access-token)
+User Information                | [Retrieve user info from the IdP using bearer access token](./use-case/02-user-info/README.md)
+Login                           | Log-in via the IdP (TBD).
+Logout                          | Log-out via web page (TBD).
+Refresh Token                   | Update and retrieve ID / Access token via refresh token (TBD).
 
 ## Reference
 - [NGINX OpenID Connect](https://github.com/shawnhankim/nginx-openid-connect)
