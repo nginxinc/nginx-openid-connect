@@ -367,7 +367,7 @@ function getAuthZArgs(r) {
     var redirectURI = r.variables.redirect_base + r.variables.redir_location;
     var authZArgs   = '?response_type=code&scope=' + r.variables.oidc_scopes +
                       '&client_id='                + r.variables.oidc_client + 
-                      '&redirect_uri='             + redirectURI + 
+                      '&redirect_uri='             + redirectURI; + 
                       '&nonce='                    + nonceHash;
 
     var cookieFlags = r.variables.oidc_cookie_flags;
@@ -387,6 +387,7 @@ function getAuthZArgs(r) {
 
         authZArgs += '&code_challenge_method=S256&code_challenge=' + 
                      pkce_code_challenge + '&state=' + r.variables.pkce_id;
+        r.log("### authZArgs: " + authZArgs)
     } else {
         authZArgs += '&state=0';
     }
@@ -406,6 +407,9 @@ function randomStr() {
 function getTokenArgs(r) {
     if (r.variables.oidc_pkce_enable == 1) {
         r.variables.pkce_id = r.variables.arg_state;
+        r.log("### r.variables.arg_state: " + r.variables.arg_state)
+        r.log("### r.variables.arg_code: " + r.variables.arg_code)
+        r.log("### r.variables.pkce_code_verifier: " + r.variables.pkce_code_verifier)
         return 'code='           + r.variables.arg_code + 
                '&code_verifier=' + r.variables.pkce_code_verifier;
     } else {
