@@ -10,7 +10,7 @@ var ERR_AC_TOKEN     = 'OIDC Access Token validation error: ';
 var ERR_ID_TOKEN     = 'OIDC ID Token validation error: ';
 var ERR_IDP_AUTH     = 'OIDC unexpected response from IdP when sending AuthZ code (HTTP ';
 var ERR_TOKEN_RES    = 'OIDC AuthZ code sent but token response is not JSON. ';
-var OK_REFRESH_TOKEN = 'OIDC refresh success, updating id_token for ';
+var MSG_OK_REFRESH_TOKEN      = 'OIDC refresh success, updating id_token for ';
 var MSG_REPLACE_REFRESH_TOKEN = 'OIDC replacing previous refresh token (';
 
 // Flag to check if there is still valid session cookie. It is used by auth()
@@ -19,10 +19,17 @@ var newSession = false;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                             *
- *           1. Export Functions: Called By `oidc_server.conf`.                *
+ *   1. Export Functions: called by `oidc_server.conf` or any location block.  *
  *                                                                             *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-export default {auth, codeExchange, validateIdToken, validateAccessToken, logout};
+export default {
+    auth,
+    codeExchange,
+    validateIdToken,
+    validateAccessToken,
+    logout,
+    testExtractBearerToken
+};
 
 // Start OIDC with either intializing new session or refershing token:
 //
@@ -114,13 +121,14 @@ function validateAccessToken(r) {
     var missingClaims = []
     if (!isValidRequiredClaims(r, ERR_AC_TOKEN, missingClaims)) {
         r.return(403);
-        return;
+        return false;
     }
     if (!isValidIatClaim(r, ERR_AC_TOKEN)) {
         r.return(403);
-        return;
+        return false;
     }
     r.return(204);
+    return true
 }
 
 function logout(r) {
@@ -133,7 +141,7 @@ function logout(r) {
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                             *
- *                          2. Common Functions                                *
+ *                   2. Common Functions for OIDC Workflows                    *
  *                                                                             *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -215,7 +223,7 @@ function handleSuccessfulRefreshResponse(r, res) {
         r.variables.access_token = tokenset.access_token;
 
         // Update new refresh token to key/value store if we got a new one.
-        r.log(OK_REFRESH_TOKEN + r.variables.cookie_auth_token);
+        r.log(MSG_OK_REFRESH_TOKEN + r.variables.cookie_auth_token);
         if (r.variables.refresh_token != tokenset.refresh_token) {
             r.log(MSG_REPLACE_REFRESH_TOKEN + r.variables.refresh_token + 
                     ') with new value: ' + tokenset.refresh_token);
@@ -333,6 +341,9 @@ function handleSuccessfulTokenResponse(r, res) {
 // - Access token validation: uri('/_access_token_validation')
 //
 function isValidToken(r, uri, token) {
+    if (!token) {
+        return false
+    }
     var isValid = true
     r.subrequest(uri, 'token=' + token, function(res) {
         if (res.status != 204) {
@@ -395,10 +406,10 @@ function randomStr() {
 function getTokenArgs(r) {
     if (r.variables.oidc_pkce_enable == 1) {
         r.variables.pkce_id = r.variables.arg_state;
-        return 'code=' + r.variables.arg_code + 
+        return 'code='           + r.variables.arg_code + 
                '&code_verifier=' + r.variables.pkce_code_verifier;
     } else {
-        return 'code=' + r.variables.arg_code + 
+        return 'code='           + r.variables.arg_code + 
                '&client_secret=' + r.variables.oidc_client_secret;
     }   
 }
@@ -490,14 +501,19 @@ function isValidNonceClaim(r, msgPrefix) {
 //
 function isValidRequiredClaims(r, msgPrefix, missingClaims) {
     var required_claims = ['iat', 'iss', 'sub'];
-    for (var i in required_claims) {
-        if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
-            missingClaims.push(required_claims[i]);
+    try {
+        for (var i in required_claims) {
+            if (r.variables['jwt_claim_' + required_claims[i]].length == 0 ) {
+                missingClaims.push(required_claims[i]);
+            }
         }
-    }
-    if (missingClaims.length) {
-        r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
-        return false;
+        if (missingClaims.length) {
+            r.error(msgPrefix + 'missing claim(s) ' + missingClaims.join(' '));
+            return false;
+        }
+    } catch (e) {
+        r.error("required claims or missing claims do not exist.")
+        return false
     }
     return true
 }
@@ -526,4 +542,34 @@ function isValidTokenSet(r, tokenset) {
         return isErr;
     }
     return !isErr;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                             *
+ *                      3. Common Functions for Testing                        *
+ *                                                                             *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+// Test for extracting bearer token from the header of API request:
+// 
+function testExtractBearerToken (r) {
+    var msg = `{"uri":` + r.variables.request_uri + "";
+    try {
+        var authZ = r.headersIn['Authorization'].split(' ');
+        if (authZ[0] === 'Bearer') {
+            if (!isValidToken(r, '/_access_token_validation', authZ[1])) {
+                msg += `, "token": "invalid"}\n`;
+                r.return(401, msg);
+                return
+            } else {
+                msg += `, "token": "` + authZ[1] + `"`;
+            }
+        } else {
+            msg += `, "token": "N/A"`;
+        }
+    } catch (e) {
+        msg += `, "authorization in header": "N/A"`;
+    }
+    var body = msg + '}\n';
+    r.return(200, body);
 }

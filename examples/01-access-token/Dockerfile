@@ -71,7 +71,6 @@ RUN    ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log  \
     && mkdir -p /etc/controller-agent/configurator/auxfiles
 
-RUN    rm /etc/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY   content  /usr/share/nginx/html
 COPY   conf     /etc/nginx
 COPY   auxfiles /etc/controller-agent/configurator/auxfiles

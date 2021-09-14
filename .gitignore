@@ -1,2 +1,3 @@
-nginx-repo.crt
-nginx-repo.key
+*.crt
+*.key
+*.json
