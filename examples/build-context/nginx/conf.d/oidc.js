@@ -387,7 +387,6 @@ function getAuthZArgs(r) {
 
         authZArgs += '&code_challenge_method=S256&code_challenge=' + 
                      pkce_code_challenge + '&state=' + r.variables.pkce_id;
-        r.log("### authZArgs: " + authZArgs)
     } else {
         authZArgs += '&state=0';
     }
@@ -407,15 +406,12 @@ function randomStr() {
 function getTokenArgs(r) {
     if (r.variables.oidc_pkce_enable == 1) {
         r.variables.pkce_id = r.variables.arg_state;
-        r.log("### r.variables.arg_state: " + r.variables.arg_state)
-        r.log("### r.variables.arg_code: " + r.variables.arg_code)
-        r.log("### r.variables.pkce_code_verifier: " + r.variables.pkce_code_verifier)
         return 'code='           + r.variables.arg_code + 
                '&code_verifier=' + r.variables.pkce_code_verifier;
     } else {
         return 'code='           + r.variables.arg_code + 
                '&client_secret=' + r.variables.oidc_client_secret;
-    }   
+    }
 }
 
 // Validate authorization code if it is correctly received from the IdP.
