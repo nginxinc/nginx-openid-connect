@@ -1,0 +1,15 @@
+version: '3.4'
+services:
+  nginx-plus-debian:
+    build:
+      context: ./
+      dockerfile: ./docker/nginxplus-debian/Dockerfile
+    image: nginxplus-oidc-debian
+    ports:
+      - '80:80'
+      - '443:443'
+      - '8010:8010'
+    volumes:
+      - type: bind
+        source: $NGINX_CONF_PATH
+        target: /etc/nginx/conf.d/

@@ -10,8 +10,7 @@ ENV PKG_RELEASE     1~buster
 
 # Download certificate and key from the customer portal (https://cs.nginx.com)
 # and copy to the build context
-COPY nginx-repo.crt /etc/ssl/nginx/
-COPY nginx-repo.key /etc/ssl/nginx/
+COPY build-context/ssl/nginx-repo.* /etc/ssl/nginx/
 
 RUN set -x \
 # Create nginx user/group first, to be consistent throughout Docker variants
@@ -67,18 +66,20 @@ RUN set -x \
     && rm -rf /etc/apt/apt.conf.d/90nginx /etc/ssl/nginx
 
 # Forward request logs to Docker log collector
-RUN    ln -sf /dev/stdout /var/log/nginx/access.log \
-    && ln -sf /dev/stderr /var/log/nginx/error.log  \
+RUN    ln -sf /dev/stdout /var/log/nginx/access.log         \
+    && ln -sf /dev/stderr /var/log/nginx/error.log          \
+    && mkdir -p /etc/nginx/conf.d                           \
     && mkdir -p /etc/controller-agent/configurator/auxfiles
 
-COPY   content  /usr/share/nginx/html
-COPY   conf     /etc/nginx
-COPY   auxfiles /etc/controller-agent/configurator/auxfiles
-VOLUME          /usr/share/nginx/html
-VOLUME          /etc/nginx
+VOLUME /usr/share/nginx/html
+VOLUME /etc/nginx
 
 RUN    chmod -R 777 /etc/nginx
 RUN    chmod -R 777 /etc/nginx/conf.d
+
+COPY  build-context/content/          /usr/share/nginx/html/
+COPY  build-context/nginx/            /etc/nginx/
+COPY  build-context/ssl/my-sample.*   /etc/controller-agent/configurator/auxfiles/
 
 EXPOSE 80
 EXPOSE 443

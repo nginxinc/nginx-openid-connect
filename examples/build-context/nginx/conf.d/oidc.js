@@ -367,7 +367,7 @@ function getAuthZArgs(r) {
     var redirectURI = r.variables.redirect_base + r.variables.redir_location;
     var authZArgs   = '?response_type=code&scope=' + r.variables.oidc_scopes +
                       '&client_id='                + r.variables.oidc_client + 
-                      '&redirect_uri='             + redirectURI + 
+                      '&redirect_uri='             + redirectURI; + 
                       '&nonce='                    + nonceHash;
 
     var cookieFlags = r.variables.oidc_cookie_flags;
@@ -411,7 +411,7 @@ function getTokenArgs(r) {
     } else {
         return 'code='           + r.variables.arg_code + 
                '&client_secret=' + r.variables.oidc_client_secret;
-    }   
+    }
 }
 
 // Validate authorization code if it is correctly received from the IdP.

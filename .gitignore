@@ -1,3 +1,4 @@
 *.crt
 *.key
 *.json
+oidc_credentials.conf
