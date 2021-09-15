@@ -49,7 +49,7 @@ $ curl -iX DELETE localhost:8010/api/6/http/keyvals/refresh_tokens
 ![](./img/nginx-plus-shared-zones.png)
 
 
-## Call Proxied Backend Service w/ Access Token
+## Call Proxied Backend Service with Access Token
 
 **To call proxied API w/ bearer access token from cookie via browser:**
 - Prerequisite: Login first through your IdP.
