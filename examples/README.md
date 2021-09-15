@@ -39,7 +39,7 @@ Use Cases                          | How To Test
 -----------------------------------|-----------------------------------------------
 Access Web Page with OIDC          | [Access web page based on OIDC workflow](./use-case/01-access-web-and-tokens/README.md#access-web-page-with-nginx-oidc)
 ID & Access Token                  | [Retrieve ID / Access token from the IdP](./use-case/01-access-web-and-tokens/README.md#query-current-sessions)
-Access Token to Proxied Backend    | [Pass bearer access token to proxied backend](./use-case/01-access-web-and-tokens/README.md#vall-proxied-backend-service-with-access-token)
+Access Token to Proxied Backend    | [Pass bearer access token to proxied backend](./use-case/01-access-web-and-tokens/README.md#call-proxied-backend-service-with-access-token)
 PKCE w/ IdPs (AWS, OneLogin, Okta) | [Access web page based on OIDC-PKCE workflow](./use-case/02-pkce/README.md)
 User Information                   | Retrieve user info from the IdP using bearer access token (TBD).
 Login                              | Log-in via the IdP (TBD).
