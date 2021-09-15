@@ -67,7 +67,7 @@ Let's set up PKCE into your application with Okta.
 
 > **Client ID Setup**:
   
-  Let's copy your client ID from the each IDP's setup and past them to the either [/etc/nginx/conf.d/`oidc_credentials.conf](../../build-context/nginx/conf.d/oidc_credentials.conf) or [etc/nginx/conf.d/oidc_common.conf](../../build-context/nginx/conf.d/oidc_common.conf).
+  Let's copy your client ID from the each IDP's setup and past them to the either [/etc/nginx/conf.d/oidc_credentials.conf](../../build-context/nginx/conf.d/oidc_credentials.conf) or [etc/nginx/conf.d/oidc_common.conf](../../build-context/nginx/conf.d/oidc_common.conf).
   Note that the `$oidc_client` directive isn't needed for PKCE workflow.
 
   ```nginx
