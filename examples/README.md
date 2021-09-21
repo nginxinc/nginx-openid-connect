@@ -46,6 +46,11 @@ Login                              | Log-in via the IdP (TBD).
 Logout                             | Log-out via web page (TBD).
 Refresh Token                      | Update and retrieve ID / Access token via refresh token (TBD).
 
+## NGINX Plus OIDC Test Tool
+For your convenience, you could use the following test tool in the main web page. It can be used as for now if you sign-in via OIDC. The login process is going to be additionally added and revised.
+
+![](./img/nginx-oidc-test-tool.png)
+
 ## Reference
 - [NGINX OpenID Connect](https://github.com/shawnhankim/nginx-openid-connect)
 - [Enabling Single Sign-On for Proxied Applications](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/)
