@@ -69,6 +69,7 @@ RUN set -x \
 RUN    ln -sf /dev/stdout /var/log/nginx/access.log         \
     && ln -sf /dev/stderr /var/log/nginx/error.log          \
     && mkdir -p /etc/nginx/conf.d                           \
+    && mkdir -p /usr/share/nginx/html/css                   \
     && mkdir -p /etc/controller-agent/configurator/auxfiles
 
 VOLUME /usr/share/nginx/html
@@ -76,6 +77,7 @@ VOLUME /etc/nginx
 
 RUN    chmod -R 777 /etc/nginx
 RUN    chmod -R 777 /etc/nginx/conf.d
+RUN    chmod -R 777 /usr/share/nginx/html/css
 
 COPY  build-context/content/          /usr/share/nginx/html/
 COPY  build-context/nginx/            /etc/nginx/

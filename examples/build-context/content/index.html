@@ -1,25 +1,50 @@
 <!DOCTYPE html>
 <html>
-<head>
-<title>Welcome to nginx!</title>
-<style>
-    body {
-        width: 35em;
-        margin: 0 auto;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-    }
-</style>
-</head>
-<body>
-<h1>Welcome to nginx - OpenID Connect w/ access token!</h1>
-<p>If you see this page, the nginx web server is successfully installed and
-working. Further configuration is required.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<p>For online documentation and support please refer to
-<a href="http://nginx.org/">nginx.org</a>.<br/>
-Commercial support is available at
-<a href="http://nginx.com/">nginx.com</a>.</p>
+    <title>NGINX Plus OIDC</title>
 
-<p><em>Thank you for using nginx - OpenID Connect w/ access token.</em></p>
-</body>
+    <link rel="icon" href="favicon-48x48.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="css/normalize.css" />
+    <link rel="stylesheet" href="css/global.css" />
+    <link rel="stylesheet" href="css/json-viewer.css">
+    <script src="json-viewer.js"></script>
+    <script src="./index.js" defer></script>
+  </head>
+
+  <body>
+    <div class="sr-root">
+      <div class="sr-main">
+        <section class="container">
+          <div>
+            <h1>NGINX Plus OIDC</h1>
+            <h4>Sample page for testing Open ID Connect</h4>
+
+            <div class="pasha-image">
+              <img
+                src="https://picsum.photos/280/320?random=4"
+                width="320"
+                height="160"
+              />
+            </div>
+          </div>
+          <button type="submit" id="signin">Sign in (TBD)</button>
+          <button type="submit" id="id-token">Get ID Token</button>
+          <button type="submit" id="ac-token">Get Access Token</button>
+          <button type="submit" id="cookie">Get Cookie</button>
+          <button type="submit" id="api-with-cookie">Call Backend API w/ Cookie + Bearer</button>
+          <button type="submit" id="api-with-bearer">Call Backend API w/ Bearer w/o Cookie</button>
+          <button type="submit" id="user-info">Get User Info</button><br>
+          <input type="text" id="message" value="Guest" name="message" /><br>
+          <div class="sr-callout">
+            <pre></pre>
+            <div id="json"></div>
+          </div>
+        </section>
+        <div id="error-message"></div>
+      </div>
+    </div>
+  </body>
 </html>
