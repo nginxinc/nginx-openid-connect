@@ -553,7 +553,7 @@ function isValidTokenSet(r, tokenset) {
 // Test for extracting bearer token from the header of API request:
 // 
 function testExtractBearerToken (r) {
-    var msg = `{"uri":` + r.variables.request_uri + "";
+    var msg = `{"uri":"` + r.variables.request_uri + `"`;
     try {
         var authZ = r.headersIn['Authorization'].split(' ');
         if (authZ[0] === 'Bearer') {

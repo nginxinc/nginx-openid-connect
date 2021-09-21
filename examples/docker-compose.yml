@@ -13,3 +13,6 @@ services:
       - type: bind
         source: $NGINX_CONF_PATH
         target: /etc/nginx/conf.d/
+      - type: bind
+        source: $NGINX_HTML_PATH
+        target: /usr/share/nginx/html/
