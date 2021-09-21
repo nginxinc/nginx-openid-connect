@@ -483,7 +483,7 @@ function isValidNonceClaim(r, msgPrefix) {
             clientNonceHash = h.digest('base64url');
         }
         if (r.variables.jwt_claim_nonce != clientNonceHash) {
-            r.error(ERR_ID_TOKEN + 'nonce from token (' + 
+            r.error(msgPrefix + 'nonce from token (' + 
                 r.variables.jwt_claim_nonce + ') does not match client (' + 
                 clientNonceHash + ')');
             return false;

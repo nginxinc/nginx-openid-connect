@@ -23,7 +23,8 @@ $ docker system prune -a && \
 
 **Run a Docker container based on the image:**
 ```bash
-$ NGINX_CONF_PATH=/Users/{your user name}/{your github path}/nginx-openid-connect/examples/context/nginx/conf.d
+$ NGINX_CONF_PATH=/Users/{user name}/{your github path}/examples/context/nginx/conf.d
+$ NGINX_HTML_PATH=/Users/{user name}/{your github path}/examples/build-context/content
 $ docker-compose up -d
 ```
 
