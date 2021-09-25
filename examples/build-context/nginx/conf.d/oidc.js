@@ -42,10 +42,12 @@ export default {
 //    proxied to the IdP in exchange for a new id_token and access_token.
 //
 function auth(r) {
+    r.log('### oidc.auth().startIdPAuthZ(), refersh_token: ' + r.variables.refresh_token)
     if (!r.variables.refresh_token || r.variables.refresh_token == '-') {
         startIdPAuthZ(r);
         return;
     }
+    r.log('### oidc.auth().refershToken(), refersh_token: ' + r.variables.refresh_token)
     refershToken(r);
 }
 
@@ -65,6 +67,7 @@ function auth(r) {
 //   - https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse
 //
 function codeExchange(r) {
+    r.log('### start codeExchange()...')
     if (!isValidAuthZCode(r)) {
         return
     }
@@ -369,7 +372,9 @@ function getAuthZArgs(r) {
                       '&client_id='                + r.variables.oidc_client + 
                       '&redirect_uri='             + redirectURI; + 
                       '&nonce='                    + nonceHash;
-
+    r.log('\n\n##### redirectURI: ' + redirectURI)
+    r.log('      - redirect_base : ' + r.variables.redirect_base)
+    r.log('      - redir_location: ' + r.variables.redir_location + '\n')
     var cookieFlags = r.variables.oidc_cookie_flags;
     r.headersOut['Set-Cookie'] = [
         'auth_redir=' + r.variables.request_uri + '; ' + cookieFlags,

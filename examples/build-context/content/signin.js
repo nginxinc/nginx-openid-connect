@@ -12,18 +12,33 @@ var MSG_SIGNINIG_IN  = 'Signinig in';
 var MSG_SIGNED_IN    = 'Signed in';
 var MSG_SIGNED_OUT   = 'Signed out';
 var MSG_EMPTY_JSON   = '{"message": "N/A"}';
-var btnSignin        = document.getElementById('signin');
+var btnHome          = document.getElementById('home');
+var btnSignout        = document.getElementById('signout');
+var btnIdToken       = document.getElementById('id-token');
+var btnAcToken       = document.getElementById('ac-token');
+var btnCookie        = document.getElementById('cookie');
+var btnAPIWithCookie = document.getElementById('api-with-cookie');
+var btnAPIWithBearer = document.getElementById('api-with-bearer');
+var btnUserInfo      = document.getElementById('user-info');
 var jsonViewer       = new JSONViewer();
 var viewerJSON       = document.querySelector("#json").appendChild(jsonViewer.getContainer());
 var accessToken      = '';
 var userName         = ''
 var isSignedIn       = false;
-btnSignin.disabled = false
 
 // Initialize button status
 var initButtons = function() {
-  btnSignin.disabled = false
+  btnHome         .disabled = false
+  btnSignout      .disabled = false
+  btnIdToken      .disabled = false
+  btnAcToken      .disabled = false
+  btnCookie       .disabled = false
+  btnAPIWithCookie.disabled = false
+  btnAPIWithBearer.disabled = false
+  btnUserInfo     .disabled = false
 };
+
+window.onload = initButtons();
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                             *
@@ -31,13 +46,100 @@ var initButtons = function() {
  *                                                                             *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-// Event Handler: for when clicking a 'Sign in' button.
-var eventHandlerSignIn = function (evt) {
+// Event Handler: for when clicking a 'eventHandlerHome' button.
+var eventHandlerHome = function (evt) {
   if (evt && evt.type === 'keypress' && evt.keyCode !== 13) {
     return;
   }
-  location.href = window.location.origin + '/signin';
+  location.href = window.location.origin;
 };
+
+
+// [WIP] Event Handler: for when clicking a 'Sign in' button.
+var eventHandlerSignOut = function (evt) {
+  if (evt && evt.type === 'keypress' && evt.keyCode !== 13) {
+    return;
+  }
+  location.href = window.location.origin + '/logout';
+};
+
+// Event Handler: for when clicking a button 'Get ID Token'.
+var eventHandlerIdToken = function (evt) {
+  var headers = {};
+  doAPIRequest(
+    evt,
+    '/id_token', 
+    'getting ID token from K/V store...',
+    'ID token: received',
+    headers
+  )
+};
+
+// Event Handler: for when clicking a 'Get Access Token' button.
+var eventHandlerAccessToken = function (evt) {
+  var headers = {};
+  doAPIRequest(
+    evt,
+    '/access_token',
+    'getting access token from K/V store...',
+    'access token: received',
+    headers
+  );
+};
+
+// Event Handler: for when clicking a 'Get Cookie' button.
+var eventHandlerCookie = function (evt) {
+  var headers = {};
+  doAPIRequest(
+    evt,
+    '/cookie', 
+    'getting cookie...',
+    'cookie: acquired',
+    headers
+  )
+};
+
+// Event Handler: for when clicking a 'Backend API w/ Cookie + Bearer' button.
+// - /v1/api/2: cookie is used. The bearer access token is also passed to the 
+//              backend API via `proxy_set_header Authorization` directive.
+var eventHandlerProxiedAPIWithCookie = function (evt) {
+  var headers = {};
+  doAPIRequest(
+    evt,
+    '/v1/api/2', 
+    'calling a proxied API w/ cookie + bearer...',
+    'passed bearer to proxied API w/ cookie',
+    headers
+  )
+};
+
+// Event Handler: for when clicking a 'Backend API w/ Bearer w/o Cookie' button.
+// - /v1/api/3: cookie isn't used. The bearer token is only used.
+var eventHandlerProxiedAPIWithBearer = function (evt) {
+  if (!accessToken) {
+    showMessage('Get access token first!');
+    clearMessage();
+    return;
+  }
+  var headers = {
+    'Accept'       : 'application/json',
+    'Content-Type' : 'application/json',
+    'Authorization': 'Bearer ' + accessToken
+  }
+  doAPIRequest(
+    evt,
+    '/v1/api/3', 
+    'calling a proxied API w/ bearer...',
+    'passed bearer to proxied API w/o cookie',
+    headers
+  );
+};
+
+// Event Handler: for when clicking a 'Get User Info' button.
+var eventHandlerUserInfo = function (evt) {
+  showUserInfo(evt)
+};
+
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *                                                                             *
@@ -205,7 +307,7 @@ var showMessageDetail = function (msg) {
 
 // Display a button title for toggling between 'Sign in' and 'Sign out'.
 var showLoginBtnTitle = function (msg) {
-  btnSignin.innerText = msg
+  btnSignout.innerText = msg
 };
 
 // Display 'Sign In' button when signed-out or occurs error during signing-in.
@@ -225,6 +327,12 @@ var showSignOutBtn = function () {
 // Enable buttons after signing in
 var enableButtonsBySigningIn = function() {
   showSignOutBtn()
+  btnIdToken      .disabled = false
+  btnAcToken      .disabled = false
+  btnCookie       .disabled = false
+  btnAPIWithCookie.disabled = false
+  btnAPIWithBearer.disabled = false
+  btnUserInfo     .disabled = false
 };
 
 // Disable buttons after signing out
@@ -233,5 +341,15 @@ var disableButtonsBySigningOut = function() {
   initButtons()
 };
 
+
 // Add event lister of each button for testing NGINX Plus OIDC integration.
-btnSignin       .addEventListener('click', eventHandlerSignIn);
+btnHome         .addEventListener('click', eventHandlerHome);
+btnSignout      .addEventListener('click', eventHandlerSignOut);
+btnIdToken      .addEventListener('click', eventHandlerIdToken);
+btnAcToken      .addEventListener('click', eventHandlerAccessToken);
+btnCookie       .addEventListener('click', eventHandlerCookie);
+btnAPIWithCookie.addEventListener('click', eventHandlerProxiedAPIWithCookie);
+btnAPIWithBearer.addEventListener('click', eventHandlerProxiedAPIWithBearer);
+btnUserInfo     .addEventListener('click', eventHandlerUserInfo);
+
+showUserInfo(null);
