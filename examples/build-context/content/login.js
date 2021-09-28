@@ -5,15 +5,9 @@
  */
 
 // Constants for common error message.
-var isSignedIn       = false;
-var TITLE_SIGNIN     = 'Sign in';
-var TITLE_SIGNOUT    = 'Sign out';
-var MSG_SIGNINIG_IN  = 'Signinig in';
-var MSG_SIGNED_IN    = 'Signed in';
-var MSG_SIGNED_OUT   = 'Signed out';
 var MSG_EMPTY_JSON   = '{"message": "N/A"}';
 var btnHome          = document.getElementById('home');
-var btnSignout        = document.getElementById('signout');
+var btnLogout        = document.getElementById('logout');
 var btnIdToken       = document.getElementById('id-token');
 var btnAcToken       = document.getElementById('ac-token');
 var btnCookie        = document.getElementById('cookie');
@@ -24,12 +18,11 @@ var jsonViewer       = new JSONViewer();
 var viewerJSON       = document.querySelector("#json").appendChild(jsonViewer.getContainer());
 var accessToken      = '';
 var userName         = ''
-var isSignedIn       = false;
 
 // Initialize button status
 var initButtons = function() {
   btnHome         .disabled = false
-  btnSignout      .disabled = false
+  btnLogout       .disabled = false
   btnIdToken      .disabled = false
   btnAcToken      .disabled = false
   btnCookie       .disabled = false
@@ -54,9 +47,8 @@ var eventHandlerHome = function (evt) {
   location.href = window.location.origin;
 };
 
-
-// [WIP] Event Handler: for when clicking a 'Sign in' button.
-var eventHandlerSignOut = function (evt) {
+// [WIP] Event Handler: for when clicking a 'Login' button.
+var eventHandlerLogOut = function (evt) {
   if (evt && evt.type === 'keypress' && evt.keyCode !== 13) {
     return;
   }
@@ -86,6 +78,7 @@ var eventHandlerAccessToken = function (evt) {
     headers
   );
 };
+
 
 // Event Handler: for when clicking a 'Get Cookie' button.
 var eventHandlerCookie = function (evt) {
@@ -146,77 +139,6 @@ var eventHandlerUserInfo = function (evt) {
  *         2. Common Functions for testing OIDC Workflows via Sample UI        *
  *                                                                             *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
-// [WIP] Sign in by clicking 'Sign In' button of the UI via the endpoint of /login
-var doLogin = function(evt) {
-  var headers = {'Access-Control-Allow-Origin': '*'};
-  const url = window.location.origin + '/signin';
-
-  showMessage('Start signing in...');
-  fetch(url, {
-      method : 'GET',
-      mode   : 'no-cors',
-      headers: headers
-  })
-  .then((response) => {
-    showMessage('Response from signin: ' + response.status)
-    showMessageDetail('{ "message": "' + response.status + ',' + response.ok + ',' + response.statusText + '"}');
-    if (!response.ok) {
-      showMessageDetail('{ "message-error": "' + response.status + ',' + response.ok + ',' + response.statusText + '"}');
-      //throw new Error(response.error)
-      return;
-    }
-    showUserInfo(evt);
-    enableButtonsBySigningIn()
-    // showSignOutBtn();
-  })
-  .catch(function(error) {
-    // disableButtonsBySigningOut()
-    // showSignInBtn();
-    // showMessage(error);
-  });
-}
-
-var doSignIn = function(evt) {
-  // var headers = {'Access-Control-Allow-Origin': '*'};
-  const url = window.location.origin + '/signin';
-  location.href = url;
-  // location.replace(window.location.origin + '/signin');
-
-
-  // fetch(url, {
-  //   method : 'GET',
-  //   mode   : 'no-cors',
-  //   headers: headers
-  // })
-  // .then(function(response) {
-  //     // When the page is loaded convert it to text
-  //     // msg = 'url: ' + response.url + " text: " + response.text() +
-  //     //       'status: ' + response.statusText + ' code: ' + response.status;
-  //     // showMessage(msg)
-  //     return response.text()
-  // })
-  // .then(function(html) {
-  //     // Initialize the DOM parser
-  //     var parser = new DOMParser();
-
-  //     // Parse the text
-  //     var doc = parser.parseFromString(html, "text/html");
-  //     var e=document.getElementById("wrap");
-      
-  //     var msg = 'doc: ' + doc + ' wrap: ' + e;
-  //     showMessage(msg)
-
-  //     // You can now even select part of that html as you would in the regular DOM 
-  //     // Example:
-  //     // var docArticle = doc.querySelector('article').innerHTML;
-  //     // showMessage(doc)
-  //     console.log(doc);
-  // })
-  // .catch(function(err) {  
-  //     console.log('Failed to fetch page: ', err);  
-  // });
-}
 
 // Request an API with application/json type response.
 var doAPIRequest = function(evt, uri, msgBefore, msgAfter, headers) {
@@ -305,46 +227,9 @@ var showMessageDetail = function (msg) {
   return res
 }
 
-// Display a button title for toggling between 'Sign in' and 'Sign out'.
-var showLoginBtnTitle = function (msg) {
-  btnSignout.innerText = msg
-};
-
-// Display 'Sign In' button when signed-out or occurs error during signing-in.
-var showSignInBtn = function () {
-  isSignedIn = false;
-  showLoginBtnTitle(TITLE_SIGNIN);
-  showMessage(MSG_SIGNED_OUT);
-};
-
-// Display 'Sign Out' button when signed-in.
-var showSignOutBtn = function () {
-  isSignedIn = true;
-  showLoginBtnTitle(TITLE_SIGNOUT);
-  showMessage(MSG_SIGNED_IN);
-};
-
-// Enable buttons after signing in
-var enableButtonsBySigningIn = function() {
-  showSignOutBtn()
-  btnIdToken      .disabled = false
-  btnAcToken      .disabled = false
-  btnCookie       .disabled = false
-  btnAPIWithCookie.disabled = false
-  btnAPIWithBearer.disabled = false
-  btnUserInfo     .disabled = false
-};
-
-// Disable buttons after signing out
-var disableButtonsBySigningOut = function() {
-  showSignInBtn()
-  initButtons()
-};
-
-
 // Add event lister of each button for testing NGINX Plus OIDC integration.
 btnHome         .addEventListener('click', eventHandlerHome);
-btnSignout      .addEventListener('click', eventHandlerSignOut);
+btnLogout       .addEventListener('click', eventHandlerLogOut);
 btnIdToken      .addEventListener('click', eventHandlerIdToken);
 btnAcToken      .addEventListener('click', eventHandlerAccessToken);
 btnCookie       .addEventListener('click', eventHandlerCookie);
