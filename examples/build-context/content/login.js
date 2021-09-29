@@ -149,7 +149,7 @@ var doAPIRequest = function(evt, uri, msgBefore, msgAfter, headers) {
   const url = window.location.origin + uri;
   fetch(url, {
       method : 'GET',
-      mode   : 'cors',
+      // mode   : 'cors',
       headers: headers
   })
   .then((response) => {

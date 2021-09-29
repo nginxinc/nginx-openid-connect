@@ -42,12 +42,10 @@ export default {
 //    proxied to the IdP in exchange for a new id_token and access_token.
 //
 function auth(r) {
-    r.log('### oidc.auth().startIdPAuthZ(), refersh_token: ' + r.variables.refresh_token)
     if (!r.variables.refresh_token || r.variables.refresh_token == '-') {
         startIdPAuthZ(r);
         return;
     }
-    r.log('### oidc.auth().refershToken(), refersh_token: ' + r.variables.refresh_token)
     refershToken(r);
 }
 
@@ -67,7 +65,6 @@ function auth(r) {
 //   - https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse
 //
 function codeExchange(r) {
-    r.log('### start codeExchange()...')
     if (!isValidAuthZCode(r)) {
         return
     }
@@ -134,12 +131,27 @@ function validateAccessToken(r) {
     return true
 }
 
+// RP-Initiated or Custom Logout w/ IDP
+// 
+// - An RP requests that the IDP log out the end-user by redirecting the
+//   end-user's User Agent to the IDP's Logout endpoint.
+// - TODO: Handle custom logout parameters if IDP doesn't support standard spec
+//         of 'OpenID Connect RP-Initiated Logout 1.0'.
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
 function logout(r) {
     r.log('OIDC logout for ' + r.variables.cookie_auth_token);
+    var idToken = r.variables.session_jwt;
+    r.variables.request_id    = '-';
     r.variables.session_jwt   = '-';
     r.variables.access_token  = '-';
     r.variables.refresh_token = '-';
-    r.return(302, r.variables.oidc_logout_redirect);
+    if (r.variables.oidc_logout_endpoint) {
+        r.return(302, r.variables.oidc_logout_endpoint + 
+                      getRPInitiatedLogoutArgs(r, idToken));
+    } else {
+        r.return(302, r.variables.oidc_logout_redirect);
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -372,9 +384,6 @@ function getAuthZArgs(r) {
                       '&client_id='                + r.variables.oidc_client + 
                       '&redirect_uri='             + redirectURI; + 
                       '&nonce='                    + nonceHash;
-    r.log('\n\n##### redirectURI: ' + redirectURI)
-    r.log('      - redirect_base : ' + r.variables.redirect_base)
-    r.log('      - redir_location: ' + r.variables.redir_location + '\n')
     var cookieFlags = r.variables.oidc_cookie_flags;
     r.headersOut['Set-Cookie'] = [
         'auth_redir=' + r.variables.request_uri + '; ' + cookieFlags,
@@ -401,6 +410,17 @@ function getAuthZArgs(r) {
 // Generate and return random string
 function randomStr() {
     return String(Math.random())
+}
+
+// Get query parameters for RP-initiated logout:
+//
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
+//
+function getRPInitiatedLogoutArgs(r, idToken) {
+    return '?post_logout_redirect_uri=' + r.variables.redirect_base
+                                        + r.variables.oidc_logout_redirect +
+           '&id_token_hint='            + idToken;
 }
 
 // Set PKCE ID and generate query parameters for OIDC token endpoint:
