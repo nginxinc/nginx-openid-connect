@@ -4,8 +4,11 @@ LABEL maintainer="NGINX Docker Maintainers <docker-maint@nginx.com>"
 # Define NGINX versions for NGINX Plus and NGINX Plus modules
 # Uncomment this block and the versioned nginxPackages block in the main RUN
 # instruction to install a specific release
+# https://docs.nginx.com/nginx/releases/  
 ENV NGINX_VERSION   24
+# https://nginx.org/en/docs/njs/changes.html  
 ENV NJS_VERSION     0.6.1
+# https://plus-pkgs.nginx.com
 ENV PKG_RELEASE     1~buster
 
 # Download certificate and key from the customer portal (https://cs.nginx.com)
@@ -48,9 +51,9 @@ RUN set -x \
         # nginx-plus-module-perl=${NGINX_VERSION}-${PKG_RELEASE} \
         # nginx-plus-module-njs \
         nginx-plus-module-njs=${NGINX_VERSION}+${NJS_VERSION}-${PKG_RELEASE} \
-        iputils-ping \
-        vim \
-        net-tools \
+        # iputils-ping \
+        # vim \
+        # net-tools \
     " \
     && echo "Acquire::https::plus-pkgs.nginx.com::Verify-Peer \"true\";" >> /etc/apt/apt.conf.d/90nginx \
     && echo "Acquire::https::plus-pkgs.nginx.com::Verify-Host \"true\";" >> /etc/apt/apt.conf.d/90nginx \

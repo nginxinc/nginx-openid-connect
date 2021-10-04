@@ -1,10 +1,10 @@
 version: '3.4'
 services:
-  nginx-plus-debian:
+  nginx-plus-ubuntu18.04:
     build:
       context: ./
-      dockerfile: ./docker/nginxplus-debian/Dockerfile
-    image: nginxplus-oidc-debian
+      dockerfile: ./docker/nginxplus-ubuntu18.04/Dockerfile
+    image: nginxplus-oidc-ubuntu18.04
     ports:
       - '80:80'
       - '443:443'
