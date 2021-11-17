@@ -62,7 +62,7 @@ Finally, create a clone of the GitHub repository.
 
 `$ git clone https://github.com/nginxinc/nginx-openid-connect`
 
-> **Note:** There is a branch for each NGINX Plus release. Switch to the correct branch to ensure compatibility with the features and syntax of each release. The master branch works with the most recent NGINX Plus and JavaScript module releases.
+> **Note:** There is a branch for each NGINX Plus release. Switch to the correct branch to ensure compatibility with the features and syntax of each release. The main branch works with the most recent NGINX Plus and JavaScript module releases.
 
 All files can be copied to **/etc/nginx/conf.d**
 
