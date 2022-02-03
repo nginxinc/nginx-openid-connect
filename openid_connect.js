@@ -103,7 +103,7 @@ function auth(r) {
 
 function codeExchange(r) {
     // First check that we received an authorization code from the IdP
-    if (r.variables.arg_code.length == 0) {
+    if (r.variables.arg_code == undefined || r.variables.arg_code.length == 0) {
         if (r.variables.arg_error) {
             r.error("OIDC error receiving authorization code from IdP: " + r.variables.arg_error_description);
         } else {
