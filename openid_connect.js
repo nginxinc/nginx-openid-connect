@@ -259,7 +259,7 @@ function getAuthZArgs(r) {
 
         authZArgs += "&code_challenge_method=S256&code_challenge=" + pkce_code_challenge + "&state=" + r.variables.pkce_id;
     } else {
-        authZArgs += "&state=0";
+        authZArgs += "&state=" + r.variables.state;
     }
     return authZArgs;
 }
