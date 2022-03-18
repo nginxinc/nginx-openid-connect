@@ -7,7 +7,21 @@ var newSession = false; // Used by oidcAuth() and validateIdToken()
 
 export default {auth, codeExchange, validateIdToken, logout};
 
+/**
+ * In case the id-token has not been synced yet, the request will be reinitated internally after 150ms.
+ * @param {object} request - NGINX njs request object
+ */
+function kvsSyncDelay(r) {
+  r.internalRedirect(`${r.variables.uri}${r.variables.is_args ? `${r.variables.is_args}${r.variables.args}` : ``}`);
+}
+
+
 function auth(r) {
+    // If a cookie was sent but the token is not in the kvs, wait for the token to be in sync.
+    if (r.variables.cookie_auth_token != null && r.variables.session_jwt == null) {
+      const t = setTimeout(kvsSyncDelay, 200, r);
+    }
+
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
         newSession = true;
 
