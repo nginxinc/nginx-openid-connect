@@ -89,7 +89,7 @@ function auth(r) {
                         }
 
                         delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
-                        r.internalRedirect(r.variables.request_uri); // Continue processing original request
+                        r.internalRedirect(`${r.variables.uri}${r.variables.is_args ? `${r.variables.is_args}${r.variables.args}` : ``}`);
                     }
                 );
             } catch (e) {
