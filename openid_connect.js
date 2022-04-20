@@ -7,6 +7,11 @@ var newSession = false; // Used by oidcAuth() and validateIdToken()
 
 export default {auth, codeExchange, validateIdToken, logout};
 
+function retryOriginalRequest(r) {
+    delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
+    r.internalRedirect(r.variables.uri + r.variables.is_args + (r.variables.args || ''));
+}
+
 function auth(r) {
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
         newSession = true;
@@ -88,8 +93,7 @@ function auth(r) {
                             r.variables.refresh_token = tokenset.refresh_token; // Update key-value store
                         }
 
-                        delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
-                        r.internalRedirect(r.variables.request_uri); // Continue processing original request
+                        retryOriginalRequest(r); // Continue processing original request
                     }
                 );
             } catch (e) {
