@@ -12,7 +12,25 @@ function retryOriginalRequest(r) {
     r.internalRedirect(r.variables.uri + r.variables.is_args + (r.variables.args || ''));
 }
 
-function auth(r) {
+// If the ID token has not been synced yet, poll the variable every 100ms until
+// get a value or after a timeout.
+function waitForSessionSync(r, timeLeft) {
+    if (r.variables.session_jwt) {
+        retryOriginalRequest(r);
+    } else if (timeLeft > 0) {
+        setTimeout(waitForSessionSync, 100, r, timeLeft - 100);
+    } else {
+        auth(r, true);
+    }
+}
+
+function auth(r, afterSyncCheck) {
+    // If a cookie was sent but the ID token is not in the key-value database, wait for the token to be in sync.
+    if (r.variables.cookie_auth_token && !r.variables.session_jwt && !afterSyncCheck && r.variables.zone_sync_leeway > 0) {
+        waitForSessionSync(r, r.variables.zone_sync_leeway);
+        return;
+    }
+
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
         newSession = true;
 
