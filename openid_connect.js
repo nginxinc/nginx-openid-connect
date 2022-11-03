@@ -5,7 +5,18 @@
  */
 var newSession = false; // Used by oidcAuth() and validateIdToken()
 
-export default {auth, codeExchange, validateIdToken, logout};
+const EXTRA_PARAMS = 1;
+const REPLACE_PARAMS = 2;
+
+export default {
+    auth,
+    codeExchange,
+    validateIdToken,
+    logout,
+    redirectPostLogin,
+    redirectPostLogout,
+    userInfo
+};
 
 function retryOriginalRequest(r) {
     delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
@@ -104,6 +115,11 @@ function auth(r, afterSyncCheck) {
                         // ID Token is valid, update keyval
                         r.log("OIDC refresh success, updating id_token for " + r.variables.cookie_auth_token);
                         r.variables.session_jwt = tokenset.id_token; // Update key-value store
+                        if (tokenset.access_token) {
+                            r.variables.access_token = tokenset.access_token;
+                        } else {
+                            r.variables.access_token = "-";
+                        }
 
                         // Update refresh token (if we got a new one)
                         if (r.variables.refresh_token != tokenset.refresh_token) {
@@ -187,6 +203,12 @@ function codeExchange(r) {
                         // Add opaque token to keyval session store
                         r.log("OIDC success, creating session " + r.variables.request_id);
                         r.variables.new_session = tokenset.id_token; // Create key-value store entry
+                        if (tokenset.access_token) {
+                            r.variables.new_access_token = tokenset.access_token;
+                        } else {
+                            r.variables.new_access_token = "-";
+                        }
+                        
                         r.headersOut["Set-Cookie"] = "auth_token=" + r.variables.request_id + "; " + r.variables.oidc_cookie_flags;
                         r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
                    }
@@ -253,11 +275,31 @@ function validateIdToken(r) {
     }
 }
 
+//
+// Default RP-Initiated or Custom Logout w/ OP.
+// 
+// - An RP requests that the OP log out the end-user by redirecting the
+//   end-user's User Agent to the OP's Logout endpoint.
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
+//
 function logout(r) {
     r.log("OIDC logout for " + r.variables.cookie_auth_token);
-    r.variables.session_jwt = "-";
-    r.variables.refresh_token = "-";
-    r.return(302, r.variables.oidc_logout_redirect);
+    var idToken = r.variables.session_jwt;
+    var queryParams = '?post_logout_redirect_uri=' + 
+                      r.variables.redirect_base + 
+                      r.variables.oidc_logout_redirect +
+                      '&id_token_hint=' + idToken;
+    if (r.variables.oidc_end_session_query_params_option == REPLACE_PARAMS) {
+        queryParams = '?' + r.variables.oidc_end_session_query_params;
+    } else if (r.variables.oidc_end_session_query_params_option == EXTRA_PARAMS) {
+        queryParams += '&' + r.variables.oidc_end_session_query_params;
+    } 
+    r.variables.request_id    = '-';
+    r.variables.session_jwt   = '-';
+    r.variables.access_token  = '-';
+    r.variables.refresh_token = '-';
+    r.return(302, r.variables.oidc_end_session_endpoint + queryParams);
 }
 
 function getAuthZArgs(r) {
@@ -298,4 +340,59 @@ function idpClientAuth(r) {
     } else {
         return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
     }   
+}
+
+//
+// Redirect URI after successful login from the OP.
+//
+function redirectPostLogin(r) {
+    if (r.variables.oidc_landing_page) {
+        r.return(302, r.variables.oidc_landing_page);
+    } else {
+        r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
+    }
+}
+
+//
+// Redirect URI after logged-out from the OP.
+//
+function redirectPostLogout(r) {
+    r.return(302, r.variables.post_logout_return_uri);
+}
+
+//
+// Return necessary user info claims after receiving and extracting all claims
+// that are received from the OpenID Connect Provider(OP).
+//
+function userInfo(r) {
+    r.subrequest('/_userinfo',
+        function(res) {
+            if (res.status == 200) {
+                var error_log = "OIDC userinfo JSON failure";
+                var claimsOP = ''; // Claims that are received by the OP.
+                try {
+                    claimsOP = JSON.parse(res.responseBody);
+                } catch (e) {
+                    error_log += ": " + res.responseBody;
+                    r.error(error_log);
+                    r.return(500);
+                    return;
+                }
+                // The claimsRP is to extract claims that are configured in
+                // $oidc_userinfo_response_data in the RP and send them to
+                // the client using the response of the OP.
+                var claimsRP = r.variables.oidc_userinfo_response_data.split(",");
+                var ret = {};
+                for (var i in claimsRP) {
+                    if (claimsRP[i] in claimsOP) {
+                        ret[claimsRP[i]] = claimsOP[claimsRP[i]];
+                    }
+                }
+                r.variables.user_info = JSON.stringify(ret);
+                r.return(200, r.variables.user_info);
+            } else {
+                r.return(res.status)
+            }
+        }
+    );
 }

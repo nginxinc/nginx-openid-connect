@@ -1,7 +1,8 @@
     # Advanced configuration START
     set $internal_error_message "NGINX / OpenID Connect login failure\n";
     set $pkce_id "";
-    resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    resolver 8.8.8.8; # For global DNS lookup of IDP endpoint
+
     subrequest_output_buffer_size 32k; # To fit a complete tokenset response
     gunzip on; # Decompress IdP responses if necessary
     # Advanced configuration END
@@ -42,7 +43,7 @@
         proxy_set_body        "grant_type=authorization_code&client_id=$oidc_client&$args&redirect_uri=$redirect_base$redir_location";
         proxy_method          POST;
         proxy_pass            $oidc_token_endpoint;
-   }
+    }
 
     location = /_refresh {
         # This location is called by oidcAuth() when performing a token refresh. We
@@ -66,17 +67,51 @@
         error_page 500 502 504 @oidc_error;
     }
 
+    location = /userinfo {
+        # This location is to provide signed-in user information claims that are
+        # defined in $oidc_userinfo_response_data.
+        default_type application/json;
+        if ($oidc_userinfo_response_data = '') {
+            return 200 '{"name": "", "message":"details not provided per your policy"}';
+        }
+        js_content oidc.userInfo;
+    }
+
+    location = /_userinfo {
+        # This location is called by oidc.userInfo() when calling /userinfo
+        # to get signed-in user information from the OP:
+        # - https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+        internal;
+        proxy_ssl_server_name on;             # For SNI to the IdP
+        proxy_set_header Authorization "Bearer $access_token";
+        proxy_pass       $oidc_userinfo_endpoint;
+    }
+
     location = /logout {
+        # RP-Initiated Logout to interact with $oidc_end_session_endpoint as per:
+        #  https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
         status_zone "OIDC logout";
-        add_header Set-Cookie "auth_token=; $oidc_cookie_flags"; # Send empty cookie
-        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags"; # Erase original cookie
         js_content oidc.logout;
     }
 
     location = /_logout {
-        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
+        # This location is a RP's callback URI that is the default value of 
+        # $oidc_logout_redirect which is called by OP after successful logout.
+
+        # Clean cookies
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags"; # Send empty cookie
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags"; # Erase original cookie
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags"; 
+
+        # Enable one of the following examples.
+
+        # Example 1. Built-in, simple logout page
         default_type text/plain;
         return 200 "Logged out\n";
+
+        # Example 2. Redirect to either the landing page or custom logout page
+        #            using the map of $post_logout_return_uri.
+        #js_content oidc.redirectPostLogout;
     }
 
     location @oidc_error {
