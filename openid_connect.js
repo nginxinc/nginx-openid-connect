@@ -5,7 +5,15 @@
  */
 var newSession = false; // Used by oidcAuth() and validateIdToken()
 
-export default {auth, codeExchange, validateIdToken, logout};
+export default {
+    auth,
+    codeExchange,
+    validateIdToken,
+    logout,
+    v2logout,
+    redirectPostLogin,
+    redirectPostLogout
+};
 
 function retryOriginalRequest(r) {
     delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
@@ -297,4 +305,69 @@ function idpClientAuth(r) {
     } else {
         return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
     }   
+}
+
+//
+// Redirect URI after logging in the IDP.
+function redirectPostLogin(r) {
+    r.return(302, r.variables.redirect_base + getIDTokenArgsAfterLogin(r));
+}
+
+//
+// Get query parameter of ID token after sucessful login:
+//
+// - For the variable of `returnTokenToClientOnLogin` of the APIM, this config
+//   is only effective for /login endpoint. By default, our implementation MUST
+//   not return any token back to the client app.
+// - If its configured it can send id_token in the request uri as 
+//   `?id_token=sdfsdfdsfs` after successful login. 
+//
+//
+function getIDTokenArgsAfterLogin(r) {
+    if (r.variables.return_token_to_client_on_login == 'id_token') {
+        return '?id_token=' + r.variables.id_token;
+    }
+    return '';
+}
+
+//
+// RP-Initiated or Custom Logout w/ Idp.
+// 
+// - An RP requests that the Idp log out the end-user by redirecting the
+//   end-user's User Agent to the Idp's Logout endpoint.
+// - TODO: Handle custom logout parameters if Idp doesn't support standard spec
+//         of 'OpenID Connect RP-Initiated Logout 1.0'.
+//
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
+//
+function v2logout(r) {
+    r.log("OIDC logout for " + r.variables.cookie_auth_token);
+    var idToken = r.variables.session_jwt;
+    var queryParams = getRPInitiatedLogoutArgs(r, idToken);
+
+    r.variables.request_id    = '-';
+    r.variables.session_jwt   = '-';
+    r.variables.access_token  = '-';
+    r.variables.refresh_token = '-';
+    r.return(302, r.variables.oidc_end_session_endpoint + queryParams);
+}
+
+//
+// Get query params for RP-initiated logout:
+//
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+// - https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
+//
+function getRPInitiatedLogoutArgs(r, idToken) {
+    return '?post_logout_redirect_uri=' + r.variables.redirect_base
+                                        + r.variables.oidc_logout_redirect_uri +
+           '&id_token_hint='            + idToken;
+}
+
+//
+// Redirect URI after logged-out from the IDP.
+//
+function redirectPostLogout(r) {
+    r.return(302, r.variables.post_logout_return_uri);
 }

@@ -2,6 +2,23 @@
 
 Reference implementation of NGINX Plus as relying party for OpenID Connect authentication
 
+- [Description](#description)
+  - [Refresh Tokens](#refresh-tokens)
+  - [User Information & Login](#user-information--login)
+  - [Logout](#logout)
+  - [Multiple IdPs](#multiple-idps)
+- [Getting Started](#🏠-getting-started)
+  - [Step 1. Quick Starting Guide](#step-1-quick-starting-guide)
+  - [Step 2. Detailed Starting Guide](#step-2-detailed-starting-guide)
+- [Installation](#installation)
+- [Configuring your IdP](#configuring-your-idp)
+- [Configuring NGINX Plus](#configuring-nginx-plus)
+- [Session Management](#session-management)
+- [Real time monitoring](#real-time-monitoring)
+- [Troubleshooting](#troubleshooting)
+- [Support](#support)
+- [Changelog](#changelog)
+
 ## Description
 
 This repository describes how to enable OpenID Connect integration for [NGINX Plus](https://www.nginx.com/products/nginx/). The solution depends on NGINX Plus components ([auth_jwt module](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html) and [key-value store](http://nginx.org/en/docs/http/ngx_http_keyval_module.html)) and as such is not suitable for [open source NGINX](http://www.nginx.org/en).
@@ -32,17 +49,44 @@ For more information on OpenID Connect and JWT validation with NGINX Plus, see [
 
 ### Refresh Tokens
 
-If a [refresh token](https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokens) was received from the IdP then it is also stored in the key-value store. When validation of the ID Token fails (typically upon expiry) then NGINX Plus sends the refresh token to the IdP. If the user's session is still valid at the IdP then a new ID token is received, validated, and updated in the key-value store. The refresh process is seamless to the client.
+If a [refresh token](https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokens) was received from the IdP then it is also stored in the key-value store. When validation of the ID Token fails (typically upon expiry) then NGINX Plus sends the refresh token to the IdP. If the user's session is still valid at the IdP then new ID token and access token are received, validated, and updated in the key-value store. The refresh process is seamless to the client. The ID token is used for user authentication with login and logout, and the access is used for API authorization before proxing to IdP endpoint such as `/userinfo` or custom backend APIs.
+
+### User Information & Login
+
+The `/userinfo` endpoint is used for the following purposes by validating access token via your IdP(s):
+
+- When connecting a frontend app for the first time, the landing page can be shown with `Login` button without user information.
+- The frontend app periodically calls the `/userinfo` endpoint, and it returns the status code of `401` as the access token is invalid before clicking `Login` button.
+- When an End-User clicks `Login` button, the frontend app calls `/login` endpoint, and the ID token, access token, and refresh token are issued by the IdP and stored in the key-value store of NGINX Plus.
+- NGINX Plus successfully redirects to the frontend landing page with session cookie after successful login.
+- In the meantime, the user information is shown in the frontend app as the `userinfo` endpoint returns the user data with the status code of `200` by validating access token with the IdP.
 
 ### Logout
 
 Requests made to the `/logout` location invalidate both the ID token and refresh token by erasing them from the key-value store. Therefore, subsequent requests to protected resources will be treated as a first-time request and send the client to the IdP for authentication. Note that the IdP may issue cookies such that an authenticated session still exists at the IdP.
+
+To avoid breaking changes of API endpoints to customers, the `/v2/logout` location is added to interact with the IdP's `end_session_endpoint` which is to handle [OIDC RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout) as the spec of OpenID Connect. The `$post_logout_return_uri` is the URI to which the RP is requesting that the End-User's User Agent be redirected after a logout has been performed. When setting up an IdP, `/v1/_logout` is used in this example, and you can change it per your preference.
 
 ### Multiple IdPs
 
 Where NGINX Plus is configured to proxy requests for multiple websites or applications, or user groups, these may require authentication by different IdPs. Separate IdPs can be configured, with each one matching on an attribute of the HTTP request, e.g. hostname or part of the URI path.
 
 > **Note:** When validating OpenID Connect tokens, NGINX Plus can be configured to read the signing key (JWKS) from disk, or a URL. When using multiple IdPs, each one must be configured to use the same method. It is not possible to use a mix of both disk and URLs for the `map…$oidc_jwt_keyfile` variable.
+
+## 🏠 Getting Started
+
+Start by following [step 1](#step-1-quick-starting-guide) if you want to quickly learn and test NGINX Plus OIDC locally. Otherwise skip step 1, and follow the [step 2](#step-2-detailed-starting-guide).
+
+### Step 1. Quick Starting Guide
+
+- 📚 [**How To Set Up and Locally Test NGINX Plus OIDC**](./docs/01-oidc-local-test.md)
+
+### Step 2. Detailed Starting Guide
+
+- [Installation](#installation)
+- [Configuring your IdP](#configuring-your-idp)
+- [Configuring NGINX Plus](#configuring-nginx-plus)
+- [Real time monitoring](#real-time-monitoring)
 
 ## Installation
 
@@ -100,6 +144,8 @@ When NGINX Plus is deployed behind another proxy, the original protocol and port
   - Obtain the URL for `jwks_uri` or download the JWK file to your NGINX Plus instance
   - Obtain the URL for the **authorization endpoint**
   - Obtain the URL for the **token endpoint**
+  - Obtain the URL for the **end session endpoint**
+  - Obtain the URL for the **user info endpoint**
 
 ## Configuring NGINX Plus
 
@@ -110,16 +156,29 @@ Manual configuration involves reviewing the following files so that they match y
 - **openid_connect_configuration.conf** - this contains the primary configuration for one or more IdPs in `map{}` blocks
 
   - Modify all of the `map…$oidc_` blocks to match your IdP configuration
-  - Modify the URI defined in `map…$oidc_logout_redirect` to specify an unprotected resource to be displayed after requesting the `/logout` location
+  - Modify the URI defined in `map…$oidc_logout_redirect` to specify an unprotected resource to be displayed after requesting the `/logout` location for customers who has been using R28.
+  - Modify the URI defined in `map…$oidc_logout_redirect_uri` to specify an unprotected resource to be displayed after requesting the `/v2/_logout` location for customers who start using R29 and wants to change from `map…$oidc_logout_redirect` to `map…$oidc_logout_redirect_uri` to use the feature of `OIDC RP-Initiated Logout` which is interact with IdP's `end_session_endpoint`.
   - Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
   - If NGINX Plus is deployed behind another proxy or load balancer, modify the `map…$redirect_base` and `map…$proto` blocks to define how to obtain the original protocol and port number.
 
-- **frontend.conf** - this is the reverse proxy configuration
+- **frontend.conf, frontend_backend_sample_v2.conf** - this of reverse proxy configuration
 
   - Modify the upstream group to match your backend site or app
   - Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
   - Modify the severity level of the `error_log` directive to suit the deployment environment
   - Comment/uncomment the `auth_jwt_key_file` or `auth_jwt_key_request` directives based on whether `$oidc_jwt_keyfile` is a file or URI, respectively
+
+  > Note:
+  >
+  > - Sample 1. frontend.conf: landing page starts OIDC flow without a login/logout button
+  > - Sample 2. frontend_backend_sample_v2.conf
+  >   - Landing page with `login` button
+  >   - `login` button to start OIDC flow by validating `id token` with the JWK of IdP.
+  >   - Landing page calls the `/userinfo` endpoint to show user information by validating `access token` with the JWK of IdP.
+  >   - `logout` button to close the OIDC session among frontend, NGINX Plus, and IdP.
+  >   - The proxied API authorization by validating `access token` with the JWK of IdP.
+  >     - Use `access token` for most of IdPs such as Amazon Cognito, Auth0, Keycloak, Okta, OneLogin and Ping Identity.
+  >     - Use `session_jwt` for Azure AD as for now.
 
 - **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
 
