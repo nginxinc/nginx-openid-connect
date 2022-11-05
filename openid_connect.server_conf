@@ -1,7 +1,9 @@
     # Advanced configuration START
     set $internal_error_message "NGINX / OpenID Connect login failure\n";
     set $pkce_id "";
-    resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    resolver 127.0.0.11;           # For local Docker DNS lookup
+             #  8.8.8.8;           # For global DNS lookup of IDP endpoint
+    resolver_timeout 10s;
     subrequest_output_buffer_size 32k; # To fit a complete tokenset response
     gunzip on; # Decompress IdP responses if necessary
     # Advanced configuration END
@@ -42,7 +44,7 @@
         proxy_set_body        "grant_type=authorization_code&client_id=$oidc_client&$args&redirect_uri=$redirect_base$redir_location";
         proxy_method          POST;
         proxy_pass            $oidc_token_endpoint;
-   }
+    }
 
     location = /_refresh {
         # This location is called by oidcAuth() when performing a token refresh. We
@@ -66,6 +68,70 @@
         error_page 500 502 504 @oidc_error;
     }
 
+    #
+    # User information endpoint for the following purposes:
+    # - Browser to periodically check if your are signed-in based on status code.
+    # - Browser to show the signed-in user information.
+    # - https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+    #
+    location = /userinfo {
+        auth_jwt "" token=$access_token;      # Access token for API authorization
+        #auth_jwt_key_file $oidc_jwt_keyfile; # Enable when using filename
+        auth_jwt_key_request /_jwks_uri;      # Enable when using URL
+
+        proxy_ssl_server_name on;             # For SNI to the IdP
+        proxy_set_header Authorization "Bearer $access_token";
+        proxy_pass       $oidc_userinfo_endpoint;
+        access_log /var/log/nginx/access.log main_jwt;
+    }
+
+    #
+    # Login endpoint to start OIDC flow when a user clicks 'login' button in the
+    # landing page.
+    #
+    location = /login {
+        # This location is called by UI for logging-in IDP using OpenID Connect.
+        auth_jwt "" token=$session_jwt;       # ID token for user authentication.
+        error_page 401 = @do_oidc_flow;
+
+        #auth_jwt_key_file $oidc_jwt_keyfile; # Enable when using filename
+        auth_jwt_key_request /_jwks_uri;      # Enable when using URL
+
+        # Redirect to the the original URI of UI after successful login to IDP.
+        js_content oidc.redirectPostLogin;
+        access_log /var/log/nginx/access.log main_jwt;
+    }
+
+    #
+    # V2 Logout: The following features are added in the NGINX R29.
+    # - The spec of RP-Initiated Logout is added.
+    # - Sample logout page for your OIDC simulation.
+    # - TODO: Custom logout parameters will be separately added.
+    #
+    location = /v2/logout {
+        # This location is called by UI to handle OIDC logout with IDP as per:
+        #  https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+        status_zone "OIDC logout";
+        js_content oidc.v2logout;
+    }
+
+    location = /v2/_logout {
+        # This location is the default value of $oidc_logout_redirect_uri (in case
+        # it wasn't configured) called by IdP after closing user session in IdP.
+
+        # Clean cookies
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags"; # Send empty cookie
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags"; # Erase original cookie
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags"; 
+
+        # Redirect to either the original page or custom logout page.
+        js_content oidc.redirectPostLogout;
+    }
+
+    #
+    # V1 Logout (NGINX R28): 
+    # - Need to implement 'RP-Initiated or Custom Logout' by yourselves.
+    #
     location = /logout {
         status_zone "OIDC logout";
         add_header Set-Cookie "auth_token=; $oidc_cookie_flags"; # Send empty cookie
