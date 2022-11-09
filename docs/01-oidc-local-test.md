@@ -50,6 +50,13 @@ This is to provide how to set up IdP, NGINX Plus and locally test OIDC flow in y
   $ make start
   ```
 
+  > Note:
+  >
+  > - In this example, a Keycloak container image (`jboss/keycloak:15.1.0`) is used.
+  > - Please try another version of Keycloak container images in [`docker-compose.yml`](../docker-compose.yml) if you have any issue when starting it in your local machine.
+
+  <br>
+
 - Check Docker container's status:
 
   ```bash
