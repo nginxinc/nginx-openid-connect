@@ -161,14 +161,14 @@ Manual configuration involves reviewing the following files so that they match y
   - Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
   - If NGINX Plus is deployed behind another proxy or load balancer, modify the `map…$redirect_base` and `map…$proto` blocks to define how to obtain the original protocol and port number.
 
-- **frontend.conf** - this of reverse proxy configuration
+- **frontend.conf** - this is the reverse proxy configuration
 
   - Modify the upstream group to match your backend site or app
   - Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
   - Modify the severity level of the `error_log` directive to suit the deployment environment
   - Comment/uncomment the `auth_jwt_key_file` or `auth_jwt_key_request` directives based on whether `$oidc_jwt_keyfile` is a file or URI, respectively
 
-  > Note:
+  > Note: Two configuration examples are provided as follows.
   >
   > - 1. Basic Example. Landing page starts OIDC flow without a login button
   >
