@@ -188,7 +188,7 @@ Update the NGINX Plus configuration file if you want. Otherwise, skip the follow
 
   > Note:
   >
-  > - In the [`frontend_backend_sample_v2.conf`](../frontend_backend_sample_v2.conf), you can add additional API endpoints like:
+  > - In the [`frontend.conf`](../frontend.conf), you can add additional API endpoints like:
   >
   >   ```nginx
   >   location /v1/api/example {

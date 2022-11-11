@@ -161,7 +161,7 @@ Manual configuration involves reviewing the following files so that they match y
   - Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
   - If NGINX Plus is deployed behind another proxy or load balancer, modify the `map…$redirect_base` and `map…$proto` blocks to define how to obtain the original protocol and port number.
 
-- **frontend.conf, frontend_backend_sample_v2.conf** - this of reverse proxy configuration
+- **frontend.conf** - this of reverse proxy configuration
 
   - Modify the upstream group to match your backend site or app
   - Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
@@ -170,8 +170,9 @@ Manual configuration involves reviewing the following files so that they match y
 
   > Note:
   >
-  > - Sample 1. frontend.conf: landing page starts OIDC flow without a login/logout button
-  > - Sample 2. frontend_backend_sample_v2.conf
+  > - 1. Basic Example. Landing page starts OIDC flow without a login button
+  >
+  > - 2. Advanced Example. Landing page, login/logout button to start/finish OIDC workflow
   >   - Landing page with `login` button
   >   - `login` button to start OIDC flow by validating `id token` with the JWK of IdP.
   >   - Landing page calls the `/userinfo` endpoint to show user information by validating `access token` with the JWK of IdP.

@@ -82,7 +82,7 @@
         proxy_ssl_server_name on;             # For SNI to the IdP
         proxy_set_header Authorization "Bearer $access_token";
         proxy_pass       $oidc_userinfo_endpoint;
-        access_log /var/log/nginx/access.log oidc_jwt;
+        access_log /var/log/nginx/access.log main_jwt;
     }
 
     #
@@ -99,7 +99,7 @@
 
         # Redirect to the the original URI of UI after successful login to IDP.
         js_content oidc.redirectPostLogin;
-        access_log /var/log/nginx/access.log oidc_jwt;
+        access_log /var/log/nginx/access.log main_jwt;
     }
 
     #
