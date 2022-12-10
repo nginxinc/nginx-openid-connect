@@ -120,7 +120,7 @@ fi
 # Build an intermediate configuration file
 # File format is: <NGINX variable name><space><IdP value>
 #
-jq -r '. | "$oidc_authz_endpoint \(.authorization_endpoint)\n$oidc_token_endpoint \(.token_endpoint)\n$oidc_jwks_uri \(.jwks_uri)"' < /tmp/${COMMAND}_$$_json > /tmp/${COMMAND}_$$_conf
+jq -r '. | "$oidc_authz_endpoint \(.authorization_endpoint)\n$oidc_token_endpoint \(.token_endpoint)\n$oidc_jwks_uri \(.jwks_uri)\n$oidc_end_session_endpoint \(.end_session_endpoint)\n$oidc_userinfo_endpoint \(.userinfo_endpoint)"' < /tmp/${COMMAND}_$$_json > /tmp/${COMMAND}_$$_conf
 
 # Create a random value for HMAC key, adding to the intermediate configuration file
 echo "\$oidc_hmac_key `openssl rand -base64 18`" >> /tmp/${COMMAND}_$$_conf
@@ -178,7 +178,7 @@ fi
 
 # Loop through each configuration variable
 echo "$COMMAND: NOTICE: Configuring $CONFDIR/openid_connect_configuration.conf"
-for OIDC_VAR in \$oidc_authz_endpoint \$oidc_token_endpoint \$oidc_jwt_keyfile \$oidc_hmac_key $CLIENT_ID_VAR $CLIENT_SECRET_VAR $PKCE_ENABLE_VAR; do
+for OIDC_VAR in \$oidc_authz_endpoint \$oidc_token_endpoint \$oidc_jwt_keyfile \$oidc_end_session_endpoint \$oidc_userinfo_endpoint \$oidc_hmac_key $CLIENT_ID_VAR $CLIENT_SECRET_VAR $PKCE_ENABLE_VAR; do
 	# Pull the configuration value from the intermediate file
 	VALUE=`grep "^$OIDC_VAR " /tmp/${COMMAND}_$$_conf | cut -f2 -d' '`
 	echo -n "$COMMAND: NOTICE:  - $OIDC_VAR ..."
