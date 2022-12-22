@@ -5,7 +5,7 @@
  */
 var newSession = false; // Used by oidcAuth() and validateIdToken()
 
-export default {auth, codeExchange, validateIdToken, logout};
+export default {auth, codeExchange, validateIdToken, logout, redirectPostLogout};
 
 function retryOriginalRequest(r) {
     delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
@@ -263,12 +263,26 @@ function validateIdToken(r) {
     }
 }
 
+// Default RP-Initiated or Custom Logout w/ OP as per:
+//  https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
+//  https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout
+// An RP requests that the OP log out the end-user by redirecting the end-user's
+// User Agent to the OP's Logout endpoint.
 function logout(r) {
     r.log("OIDC logout for " + r.variables.cookie_auth_token);
+    var queryParams = '';
+    if (r.variables.oidc_end_session_query_params) {
+        queryParams = '?' + r.variables.oidc_end_session_query_params;
+    }
     r.variables.session_jwt   = "-";
     r.variables.access_token  = "-";
     r.variables.refresh_token = "-";
-    r.return(302, r.variables.oidc_logout_redirect);
+    r.return(302, r.variables.oidc_end_session_endpoint + queryParams);
+}
+
+// Redirect URI after logged-out from the OP.
+function redirectPostLogout(r) {
+    r.return(302, r.variables.oidc_logout_landing_page);
 }
 
 function getAuthZArgs(r) {
