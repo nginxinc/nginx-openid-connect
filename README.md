@@ -32,9 +32,9 @@ For more information on OpenID Connect and JWT validation with NGINX Plus, see [
 
 ### Access Tokens
 
-The [access tokens](https://openid.net/specs/openid-connect-core-1_0.html#AccessTokenDisclosure) are used in token-based authentication to allow OIDC client to access a protected resource on behalf of the user. NGINX Plus receives an access token after a user successfully authenticates and authorizes access, when storing it in the key-value store. NGINX Plus can pass that token on the HTTP Authorization header as a [Bearer token](https://oauth.net/2/bearer-tokens/) for every request that is sent to the downstream application.
+[Access tokens](https://openid.net/specs/openid-connect-core-1_0.html#AccessTokenDisclosure) are used in token-based authentication to allow OIDC client to access a protected resource on behalf of the user. NGINX Plus receives an access token after a user successfully authenticates and authorizes access, and then stores it in the key-value store. NGINX Plus can pass that token on the HTTP Authorization header as a [Bearer token](https://oauth.net/2/bearer-tokens/) for every request that is sent to the downstream application.
 
-> **Note:** NGINX Plus does not verify the validity of the access token on each request, as we do with the ID token, so we cannot know if the access token has already expired or not. So, if access token lifetime is less than the ID token lifetime, you have to use the `proxy_intercept_errors on` directive, which will intercept and redirect "401 Unauthorized" responses to NGINX in order to refresh the access token.
+> **Note:** NGINX Plus does not verify the validity of the access token on each request, as we do with the ID token, so we cannot know if the access token has already expired or not. So, if access token lifetime is less than the ID token lifetime, you have to use the `proxy_intercept_errors on` directive, which will intercept and redirect `401 Unauthorized` responses to NGINX in order to refresh the access token.
 
 ### Refresh Tokens
 
