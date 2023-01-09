@@ -266,7 +266,7 @@ function validateIdToken(r) {
 function logout(r) {
     r.log("OIDC logout for " + r.variables.cookie_auth_token);
     r.variables.session_jwt   = "-";
-    r.variables.access_token  = '-';
+    r.variables.access_token  = "-";
     r.variables.refresh_token = "-";
     r.return(302, r.variables.oidc_logout_redirect);
 }
