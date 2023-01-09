@@ -30,13 +30,19 @@ Subsequent requests to protected resources are authenticated by exchanging the s
 
 For more information on OpenID Connect and JWT validation with NGINX Plus, see [Authenticating Users to Existing Applications with OpenID Connect and NGINX Plus](https://www.nginx.com/blog/authenticating-users-existing-applications-openid-connect-nginx-plus/).
 
+### Access Tokens
+
+[Access tokens](https://openid.net/specs/openid-connect-core-1_0.html#AccessTokenDisclosure) are used in token-based authentication to allow OIDC client to access a protected resource on behalf of the user. NGINX Plus receives an access token after a user successfully authenticates and authorizes access, and then stores it in the key-value store. NGINX Plus can pass that token on the HTTP Authorization header as a [Bearer token](https://oauth.net/2/bearer-tokens/) for every request that is sent to the downstream application.
+
+> **Note:** NGINX Plus does not verify the validity of the access token on each request, as we do with the ID token, so we cannot know if the access token has already expired or not. So, if access token lifetime is less than the ID token lifetime, you have to use the `proxy_intercept_errors on` directive, which will intercept and redirect `401 Unauthorized` responses to NGINX in order to refresh the access token.
+
 ### Refresh Tokens
 
 If a [refresh token](https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokens) was received from the IdP then it is also stored in the key-value store. When validation of the ID Token fails (typically upon expiry) then NGINX Plus sends the refresh token to the IdP. If the user's session is still valid at the IdP then a new ID token is received, validated, and updated in the key-value store. The refresh process is seamless to the client.
 
 ### Logout
 
-Requests made to the `/logout` location invalidate both the ID token and refresh token by erasing them from the key-value store. Therefore, subsequent requests to protected resources will be treated as a first-time request and send the client to the IdP for authentication. Note that the IdP may issue cookies such that an authenticated session still exists at the IdP.
+Requests made to the `/logout` location invalidate both the ID token, access token and refresh token by erasing them from the key-value store. Therefore, subsequent requests to protected resources will be treated as a first-time request and send the client to the IdP for authentication. Note that the IdP may issue cookies such that an authenticated session still exists at the IdP.
 
 ### Multiple IdPs
 
@@ -114,6 +120,8 @@ Manual configuration involves reviewing the following files so that they match y
     * Configure the preferred listen port and [enable SSL/TLS configuration](https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-http/)
     * Modify the severity level of the `error_log` directive to suit the deployment environment
     * Comment/uncomment the `auth_jwt_key_file` or `auth_jwt_key_request` directives based on whether `$oidc_jwt_keyfile` is a file or URI, respectively
+    * Uncomment the `proxy_set_header Authorization "Bearer $access_token"` directive if you want to pass access/bearer token in HTTP header to the protected backend/upstream
+    * Uncoment the `proxy_intercept_errors on` directive if the access token lifetime is less than the ID token lifetime
 
   * **openid_connect.server_conf** - this is the NGINX configuration for handling the various stages of OpenID Connect authorization code flow
     * No changes are usually required here
@@ -128,8 +136,9 @@ Manual configuration involves reviewing the following files so that they match y
 The key-value store is used to maintain persistent storage for ID tokens and refresh tokens. The default configuration should be reviewed so that it suits the environment. This is part of the advanced configuration in **openid_connect_configuration.conf**.
 
 ```nginx
-keyval_zone zone=oidc_id_tokens:1M state=conf.d/oidc_id_tokens.json timeout=1h;
-keyval_zone zone=refresh_tokens:1M state=conf.d/refresh_tokens.json timeout=8h;
+keyval_zone zone=oidc_id_tokens:1M     state=conf.d/oidc_id_tokens.json     timeout=1h;
+keyval_zone zone=oidc_access_tokens:1M state=conf.d/oidc_access_tokens.json timeout=1h;
+keyval_zone zone=refresh_tokens:1M     state=conf.d/refresh_tokens.json     timeout=8h;
 keyval_zone zone=oidc_pkce:128K timeout=90s;
 ```
 
@@ -157,6 +166,7 @@ To delete a single session:
 
 ```shell
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/oidc_id_tokens
+$ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/oidc_access_tokens
 $ curl -iX PATCH -d '{"<session ID>":null}' localhost:8010/api/6/http/keyvals/refresh_tokens
 ```
 
@@ -164,6 +174,7 @@ To delete all sessions:
 
 ```shell
 $ curl -iX DELETE localhost:8010/api/6/http/keyvals/oidc_id_tokens
+$ curl -iX DELETE localhost:8010/api/6/http/keyvals/oidc_access_tokens
 $ curl -iX DELETE localhost:8010/api/6/http/keyvals/refresh_tokens
 ```
 
@@ -223,6 +234,12 @@ proxy_set_header Host <IdP hostname>;
 proxy_ssl_name        <IdP hostname>;
 ```
 
+  * **Invalid access token**
+    Users may receive a `401` response with an optional "Invalid token" message despite successful authentication. There are several reasons why an OIDC access token might not be accepted by the upstream server, even if it has not expired:
+    * Incorrect backend server configuration. NGINX Plus sends the bearer token in the HTTP Authorization header, but the backend application expects it in a specific cookie.
+    * The token has been tampered with. OIDC access tokens are digitally signed by the authorization server to ensure their authenticity. If the token has been modified in any way, the signature will no longer be valid, and the token will be considered invalid.
+    > **Note:** The scope of an OIDC access token is independent of its validity. Even if an OIDC access token is not expired and has not been revoked, it may still be considered invalid if it does not have the necessary scope for the requested action. Please check the `$oidc_scopes` variable in the `openid_connect_configuration.conf` file.
+
 ## Support
 
 This reference implementation for OpenID Connect is supported for NGINX Plus subscribers.
@@ -236,3 +253,4 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R19** Minor bug fixes
   * **R22** Separate configuration file, supports multiple IdPs. Configurable scopes and cookie flags. JavaScript is imported as an indepedent module with `js_import`. Container-friendly logging. Additional metrics for OIDC activity.
   * **R23** PKCE support. Added support for deployments behind another proxy or load balancer.
+  * **R28** Access token support. Added support for access token to authorize NGINX to access protected backend.
