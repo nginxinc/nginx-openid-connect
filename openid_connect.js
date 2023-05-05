@@ -63,10 +63,10 @@ function auth(r, afterSyncCheck) {
                     error_log += ", timeout waiting for IdP";
                 } else if (reply.status == 400) {
                     try {
-                        var errorset = JSON.parse(reply.responseBody);
+                        var errorset = JSON.parse(reply.responseText);
                         error_log += ": " + errorset.error + " " + errorset.error_description;
                     } catch (e) {
-                        error_log += ": " + reply.responseBody;
+                        error_log += ": " + reply.responseText;
                     }
                 } else {
                     error_log += " "  + reply.status;
@@ -81,7 +81,7 @@ function auth(r, afterSyncCheck) {
 
             // Refresh request returned 200, check response
             try {
-                var tokenset = JSON.parse(reply.responseBody);
+                var tokenset = JSON.parse(reply.responseText);
                 if (!tokenset.id_token) {
                     r.error("OIDC refresh response did not include id_token");
                     if (tokenset.error) {
@@ -151,14 +151,14 @@ function codeExchange(r) {
 
             if (reply.status != 200) {
                 try {
-                    var errorset = JSON.parse(reply.responseBody);
+                    var errorset = JSON.parse(reply.responseText);
                     if (errorset.error) {
                         r.error("OIDC error from IdP when sending authorization code: " + errorset.error + ", " + errorset.error_description);
                     } else {
-                        r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
+                        r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseText);
                     }
                 } catch (e) {
-                    r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseBody);
+                    r.error("OIDC unexpected response from IdP when sending authorization code (HTTP " + reply.status + "). " + reply.responseText);
                 }
                 r.return(502);
                 return;
@@ -166,7 +166,7 @@ function codeExchange(r) {
 
             // Code exchange returned 200, check for errors
             try {
-                var tokenset = JSON.parse(reply.responseBody);
+                var tokenset = JSON.parse(reply.responseText);
                 if (tokenset.error) {
                     r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
                     r.return(500);
@@ -202,7 +202,7 @@ function codeExchange(r) {
                    }
                 );
             } catch (e) {
-                r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseBody);
+                r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseText);
                 r.return(502);
             }
         }
