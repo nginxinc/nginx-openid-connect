@@ -198,7 +198,8 @@ function codeExchange(r) {
                             r.variables.new_access_token = "";
                         }
                         r.headersOut["Set-Cookie"] = "auth_token=" + r.variables.request_id + "; " + r.variables.oidc_cookie_flags;
-                        r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
+                        const redirectLocation = r.variables.after_codexch_redir || r.variables.cookie_auth_redir
+                        r.return(302, r.variables.redirect_base + redirectLocation);
                    }
                 );
             } catch (e) {
@@ -268,7 +269,10 @@ function logout(r) {
     r.variables.session_jwt   = "-";
     r.variables.access_token  = "-";
     r.variables.refresh_token = "-";
-    r.return(302, r.variables.oidc_logout_redirect);
+    const redirectLocation = r.variables.initial_logout_redir
+        ? `${r.variables.redirect_base}${r.variables.initial_logout_redir}`
+        : r.variables.oidc_logout_redirect;
+    r.return(302, redirectLocation);
 }
 
 function getAuthZArgs(r) {

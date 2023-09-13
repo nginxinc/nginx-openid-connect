@@ -24,7 +24,6 @@
         default_type text/plain; # In case we throw an error
     }
 
-    set $redir_location "/_codexch";
     location = /_codexch {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
