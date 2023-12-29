@@ -197,8 +197,9 @@ function codeExchange(r) {
                         } else {
                             r.variables.new_access_token = "";
                         }
+
                         r.headersOut["Set-Cookie"] = "auth_token=" + r.variables.request_id + "; " + r.variables.oidc_cookie_flags;
-                        r.return(302, r.variables.redirect_base + r.variables.cookie_auth_redir);
+                        r.return(302, r.variables.redirect_base + decodeURIComponent(r.variables.cookie_auth_redir));
                    }
                 );
             } catch (e) {
@@ -283,8 +284,10 @@ function getAuthZArgs(r) {
         authZArgs += "&" + r.variables.oidc_authz_extra_args;
     }
 
+    var encodedRequestUri = encodeURIComponent(r.variables.request_uri);
+
     r.headersOut['Set-Cookie'] = [
-        "auth_redir=" + r.variables.request_uri + "; " + r.variables.oidc_cookie_flags,
+        "auth_redir=" + encodedRequestUri + "; " + r.variables.oidc_cookie_flags,
         "auth_nonce=" + noncePlain + "; " + r.variables.oidc_cookie_flags
     ];
 
