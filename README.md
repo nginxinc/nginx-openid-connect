@@ -42,7 +42,7 @@ If a [refresh token](https://openid.net/specs/openid-connect-core-1_0.html#Refre
 
 ### Logout
 
-Requests made to the `/logout` location invalidate both the ID token, access token and refresh token by erasing them from the key-value store. Therefore, subsequent requests to protected resources will be treated as a first-time request and send the client to the IdP for authentication. Note that the IdP may issue cookies such that an authenticated session still exists at the IdP.
+Requests made to the `/logout` location invalidate both the ID token and refresh token by erasing them from the key-value store. Next, the User Agent is redirected to the `$oidc_end_session_endpoint` in order to terminate the user session on the IdP's side. After the session is successfully terminated on the IdP side, the User Agent will be redirected to the `$oidc_logout_landing_page`. Note that the `$oidc_logout_landing_page` endpoint must not require authentication, otherwise the user authentication process may be initiated from the beginning.
 
 ### Multiple IdPs
 
@@ -102,6 +102,7 @@ When NGINX Plus is deployed behind another proxy, the original protocol and port
     * Obtain the URL for `jwks_uri` or download the JWK file to your NGINX Plus instance
     * Obtain the URL for the **authorization endpoint**
     * Obtain the URL for the **token endpoint**
+    * Obtain the URL for the **end session endpoint**
 
 ## Configuring NGINX Plus
 
@@ -111,7 +112,7 @@ Manual configuration involves reviewing the following files so that they match y
 
   * **openid_connect_configuration.conf** - this contains the primary configuration for one or more IdPs in `map{}` blocks
     * Modify all of the `map…$oidc_` blocks to match your IdP configuration
-    * Modify the URI defined in `map…$oidc_logout_redirect` to specify an unprotected resource to be displayed after requesting the `/logout` location
+    * Modify the URI defined in `map…$oidc_logout_landing_page` to redirect browser after successful logout
     * Set a unique value for `$oidc_hmac_key` to ensure nonce values are unpredictable
     * If NGINX Plus is deployed behind another proxy or load balancer, modify the `map…$redirect_base` and `map…$proto` blocks to define how to obtain the original protocol and port number.
 
