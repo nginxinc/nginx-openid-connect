@@ -1,11 +1,11 @@
 /*
  * JavaScript functions for providing OpenID Connect with NGINX Plus
- * 
+ *
  * Copyright (C) 2020 Nginx, Inc.
  */
 var newSession = false; // Used by oidcAuth() and validateIdToken()
 
-export default {auth, codeExchange, validateIdToken, logout};
+export default {auth, codeExchange, validateIdToken, logout, redirectPostLogout};
 
 function retryOriginalRequest(r) {
     delete r.headersOut["WWW-Authenticate"]; // Remove evidence of original failed auth_jwt
@@ -51,7 +51,7 @@ function auth(r, afterSyncCheck) {
         r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
         return;
     }
-    
+
     // Pass the refresh token to the /_refresh location so that it can be
     // proxied to the IdP in exchange for a new id_token
     r.subrequest("/_refresh", "token=" + r.variables.refresh_token,
@@ -266,10 +266,17 @@ function validateIdToken(r) {
 
 function logout(r) {
     r.log("OIDC logout for " + r.variables.cookie_auth_token);
-    r.variables.session_jwt   = "-";
-    r.variables.access_token  = "-";
-    r.variables.refresh_token = "-";
-    r.return(302, r.variables.oidc_logout_redirect);
+    var logoutArgs = "?post_logout_redirect_uri=" + r.variables.redirect_base + r.variables.oidc_logout_redirect + "&id_token_hint=" + r.variables.session_jwt;
+
+    r.variables.session_jwt   = '-';
+    r.variables.access_token  = '-';
+    r.variables.refresh_token = '-';
+    r.return(302, r.variables.oidc_logout_endpoint + logoutArgs);
+}
+
+// Redirect URL after logged-out from the IDP.
+function redirectPostLogout(r) {
+    r.return(302, r.variables.redir_post_logout);
 }
 
 function getAuthZArgs(r) {
@@ -311,5 +318,5 @@ function idpClientAuth(r) {
         return "code=" + r.variables.arg_code + "&code_verifier=" + r.variables.pkce_code_verifier;
     } else {
         return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
-    }   
+    }
 }
