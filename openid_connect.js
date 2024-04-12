@@ -272,9 +272,22 @@ function logout(r) {
     r.return(302, r.variables.oidc_logout_redirect);
 }
 
+/**
+ * Generates a random string ID with a specified length.
+ *
+ * @param {number} keyLength - Length of the generated ID. If it's less than 20,
+ * the default value of 20 will be used.
+ * @returns {string} - A randomly generated string ID in hexadecimal format.
+ */
+function generateID(keyLength) {
+    keyLength = keyLength > 20 ? keyLength : 20;
+    let buf = Buffer.alloc(keyLength);
+    return (crypto.getRandomValues(buf)).toString('hex');
+}
+
 function getAuthZArgs(r) {
     // Choose a nonce for this flow for the client, and hash it for the IdP
-    var noncePlain = r.variables.request_id;
+    var noncePlain = generateID();
     var c = require('crypto');
     var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
     var nonceHash = h.digest('base64url');
