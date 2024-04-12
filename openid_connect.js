@@ -410,13 +410,6 @@ function updateTokens(r, tokenset) {
         if (tokenset.refresh_token) {
             r.variables.new_refresh = tokenset.refresh_token;
             r.log(`New OIDC refresh token stored for session ${r.variables.oidc_keyval_id_rotate}`);
-
-            // The R31 39334b6616690b652bad9fa5f0d3c72df8759ece implementation had a comment that said "Update refresh token (if we got a new one)"
-            // However, if no refresh_token was in the tokenset response tokenset.refresh_token would be undefined, triggering the != comparison,
-            //   so r.variables.refresh_token would be set to undefined.
-            // The commented out else if matches the R31 comment behavior of "update only if new", but is commented out as that is not the actual behavior.
-            //} else if (r.variables.oidc_keyval_id_current && r.variables.refresh_token && r.variables.refresh_token != "-") {
-            // r.variables.new_refresh = r.variables.refresh_token
         } else {
             r.variables.new_refresh = "-";
             r.warn(`OIDC no refresh token for session ${r.variables.oidc_keyval_id_rotate}`);
