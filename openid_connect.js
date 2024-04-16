@@ -2,12 +2,6 @@
  * JavaScript functions for providing OpenID Connect with NGINX Plus
  *
  * Copyright (C) 2020 Nginx, Inc.
- *
- * Note: This uses the oidc_keyval_id as the log session ID.
- * This ID is a considered non-sensitive as:
- *  - It is not directly redeemable for a session.
- *  - It is available in the keyval stores, so already exposed via the Nginx API (when the API is used).
- *    - The keyval stores contain the IdP access and refresh tokens, which must be protected under all circumstances.
  */
 const cryptoLib = require('crypto');
 
@@ -110,11 +104,21 @@ function auth(r, afterSyncCheck) {
                         }
 
                         // ID Token is valid, update keyval
-                        // updateTokens() updates r on error (false return value)
-                        if ( updateTokens(r, tokenset) ) {
-                            // Success
-                            retryOriginalRequest(r); // Continue processing original request
+                        r.log("OIDC refresh success, updating id_token for " + r.variables.oidc_keyval_id_current);
+                        r.variables.session_jwt = tokenset.id_token; // Update key-value store
+                        if (tokenset.access_token) {
+                            r.variables.access_token = tokenset.access_token;
+                        } else {
+                            r.variables.access_token = "";
                         }
+
+                        // Update refresh token (if we got a new one)
+                        if (r.variables.refresh_token != tokenset.refresh_token) {
+                            r.log("OIDC replacing previous refresh token (" + r.variables.refresh_token + ") with new value: " + tokenset.refresh_token);
+                            r.variables.refresh_token = tokenset.refresh_token; // Update key-value store
+                        }
+
+                        retryOriginalRequest(r); // Continue processing original request
                     }
                 );
             } catch (e) {
@@ -179,13 +183,25 @@ function codeExchange(r) {
                             return;
                         }
 
-                        // Token is valid, store it
-                        // updateTokens() updates r on error (false return value)
-                        if ( updateTokens(r, tokenset) ) {
-                            // Success
-                            r.return(302, r.variables.redirect_base + decodeURIComponent(r.variables.cookie_auth_redir));
+                        // If the response includes a refresh token then store it
+                        if (tokenset.refresh_token) {
+                            r.variables.new_refresh = tokenset.refresh_token; // Create key-value store entry
+                            r.log("OIDC refresh token stored");
+                        } else {
+                            r.warn("OIDC no refresh token");
                         }
-                    }
+
+                        // Add opaque token to keyval session store
+                        r.log("OIDC success, creating session " + r.variables.request_id);
+                        r.variables.new_session = tokenset.id_token; // Create key-value store entry
+                        if (tokenset.access_token) {
+                            r.variables.new_access_token = tokenset.access_token;
+                        } else {
+                            r.variables.new_access_token = "";
+                        }
+
+                        r.return(302, r.variables.redirect_base + decodeURIComponent(r.variables.cookie_auth_redir));
+                   }
                 );
             } catch (e) {
                 r.error("OIDC authorization code sent but token response is not JSON. " + reply.responseText);
@@ -340,76 +356,5 @@ function idpClientAuth(r) {
         return "code=" + r.variables.arg_code + "&code_verifier=" + r.variables.pkce_code_verifier;
     } else {
         return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
-    }
-}
-
-// Performs a update of the token keyval stores from a provided tokenset argument.
-// Common codepath for new sessions and refreshes.
-// Performs basic fault checking and rotates the client session access token each invocation via an indirect call to generateKeyValIDRotate().
-function updateTokens(r, tokenset) {
-    try {
-        // NOTE: This call to r.variables.oidc_keyval_id_rotate is intended to be the trigger that rotates the client token
-        // Rotating the session ID each update is done as it increases security while simultaneously reducing the code complexity
-        //   as one set path is valid for both new and refresh operations.
-        // Calling r.variables.oidc_keyval_id_rotate calls generateKeyValIDRotate() (via js_set in Nginx config) which sets the auth_token cookie
-        r.log(`OIDC success, updating session for ${r.variables.oidc_keyval_id_rotate}`);
-        // Sanity check to a void using something falsy like `undefined` for all the token keys,
-        //   which would be a terrible bug potentially leading to incorrect sessions being returned.
-        if ( ! r.variables.oidc_keyval_id_rotate ) {
-            // This is a bug when this codepath is triggered. r.variables.oidc_keyval_id_rotate should be set.
-            r.error("OIDC Session Error: INTERNAL ERROR: Rotate keyval key undefined");
-            r.return(500);
-            return false;
-        }
-
-        // Ensure there isn't an ID collision
-        let tokenNames = ["session", "access", "refresh"];
-        let currentTokenValues = [r.variables.new_session, r.variables.new_access, r.variables.new_refresh];
-        for (var index in tokenNames) {
-            if ( currentTokenValues[index] ) {
-                r.error(`OIDC Session Error: ${tokenNames[index]} token collision for session ID ${r.variables.oidc_keyval_id_rotate}`);
-                r.return(500);
-                return false;
-            }
-        }
-
-        r.variables.new_session = tokenset.id_token;
-
-        if (tokenset.refresh_token) {
-            r.variables.new_refresh = tokenset.refresh_token;
-            r.log(`New OIDC refresh token stored for session ${r.variables.oidc_keyval_id_rotate}`);
-        } else {
-            r.variables.new_refresh = "-";
-            r.warn(`OIDC no refresh token for session ${r.variables.oidc_keyval_id_rotate}`);
-        }
-
-        if (tokenset.access_token) {
-            r.variables.new_access_token = tokenset.access_token;
-            r.log(`OIDC access token stored for session ${r.variables.oidc_keyval_id_rotate}`);
-        } else {
-            r.variables.new_access_token = "-";
-        }
-
-        if ( r.variables.oidc_keyval_id_current ) {
-            // Flush the old tokens
-            r.variables.session_jwt = "-";
-            r.variables.refresh_token  = "-";
-            r.variables.access_token = "-";
-        }
-
-        // Set $oidc_keyval_id_current to $oidc_keyval_id_rotate for the refresh flow.
-        r.variables.oidc_keyval_id_current = r.variables.oidc_keyval_id_rotate;
-
-        return true;
-
-    } catch (e) {
-        r.error(`OIDC Session Error: Failed to update session ID ${r.variables.oidc_keyval_id_rotate}: ${e}`);
-
-        r.variables.new_session = "-";
-        r.variables.new_access  = "-";
-        r.variables.new_refresh = "-";
-
-        r.return(500);
-        return false;
     }
 }
