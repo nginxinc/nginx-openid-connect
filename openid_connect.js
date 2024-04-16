@@ -273,7 +273,7 @@ function logout(r) {
 }
 
 function generateID(keyLength) {
-    keyLength = keyLength > 20 ? keyLength : 20;
+    keyLength = keyLength > 16 ? keyLength : 16;
     let buf = Buffer.alloc(keyLength);
     return (crypto.getRandomValues(buf)).toString('hex');
 }
