@@ -256,29 +256,15 @@ function logout(r) {
     r.return(302, r.variables.oidc_logout_redirect);
 }
 
-/**
- * Generates a random string ID with a specified length.
- *
- * @param {number} keyLength - Length of the generated ID. If it's less than 20,
- * the default value of 20 will be used.
- * @returns {string} - A randomly generated string ID in hexadecimal format.
- */
 function generateID(keyLength) {
     keyLength = keyLength > 20 ? keyLength : 20;
     let buf = Buffer.alloc(keyLength);
     return (crypto.getRandomValues(buf)).toString('hex');
 }
 
-/**
- * Generates the keyval key for the keyval module stores based on the clientToken argument.
- * clientToken is hashed using the configured oidc_hmac_key.
- * This hashing is done to generate a keyval key ID unique to the client session but which is not redeemable for a session via the auth_token cookie.
- * This is protection against keyval store compromise.
- *
- * @param r: The njs request
- * @param {string}: clientToken: The plain clientToken to hash.
- * @returns {string} - A cryptographic hash of the clientToken value.
- */
+// Generates the keyval key for the keyval module stores based on the clientToken argument.
+// This hashing is done to generate a keyval key ID unique to the client session but which is not redeemable for a session via the auth_token cookie.
+// This is protection against keyval store compromise.
 function generateKeyValID(r, clientToken) {
     if ( !clientToken) {
         throw(`Unsuitable clientToken passed: "${clientToken}"`);
@@ -290,18 +276,12 @@ function generateKeyValID(r, clientToken) {
     return rv;
 }
 
-/**
- * Generates the keyval key for the keyval module stores based on the cookie_auth_token passed by the client.
- * Intended for the first-pass keyval lookups to look up existing values.
- * intended to be called by the js_set directive in Nginx config.
- *
- * This function will return null if there is no existing session.
- * Not intended or safe for setting keyval store pairs.
- *
- * @param r: The njs request
- * @returns {string} - A cryptographic hash of the cookie_auth_token value on success
- *                     Returns null if the cookie_auth_token is missing or unset.
- */
+// Generates the keyval key for the keyval module stores based on the cookie_auth_token passed by the client.
+// Intended for the first-pass keyval lookups to look up existing values.
+// intended to be called by the js_set directive in Nginx config.
+//
+// This function will return null if there is no existing session.
+// Not intended or safe for setting keyval store pairs.
 function generateKeyValIDCurrent(r) {
     // "-" is the "unset" value
     if ( r.variables.cookie_auth_token && r.variables.cookie_auth_token != "-" ) {
@@ -313,14 +293,8 @@ function generateKeyValIDCurrent(r) {
     return null;
 }
 
-/**
- * Generates a random, new keyval key for the keyval module stores.
- * Also sets the auth_token cookie with the new client secret.
- * Intended for token update calls *only*.
- *
- * @param r: The njs request
- * @returns {string} - A cryptographic hash of the new cookie_auth_token value on success
- */
+// Generates a random, new keyval key for the keyval module stores.
+// Intended for token update calls *only*.
 function generateKeyValIDRotate(r) {
     let clientToken = generateID();
 
@@ -369,15 +343,9 @@ function idpClientAuth(r) {
     }
 }
 
-/**
- * Performs a update of the token keyval stores from a provided tokenset argument.
- * Common codepath for new sessions and refreshes.
- * Performs basic fault checking and rotates the client session access token each invocation via an indirect call to generateKeyValIDRotate().
- *
- * @param r: The njs request
- * @param {object} tokensetr: The decoded IdP /token API response
- * @returns {boolean} - true on success and false on error.  Logs via r and sets r.return() on error.
- */
+// Performs a update of the token keyval stores from a provided tokenset argument.
+// Common codepath for new sessions and refreshes.
+// Performs basic fault checking and rotates the client session access token each invocation via an indirect call to generateKeyValIDRotate().
 function updateTokens(r, tokenset) {
     try {
         // NOTE: This call to r.variables.oidc_keyval_id_rotate is intended to be the trigger that rotates the client token
