@@ -6,6 +6,25 @@
     gunzip on; # Decompress IdP responses if necessary
     # Advanced configuration END
 
+    # Cookie rewrite START
+    # Block the sensitive auth cookies from passing through
+    set $sanitized_cookie $http_cookie;
+
+    # https://stackoverflow.com/questions/67548886/remove-specific-cookie-in-nginx-reverse-proxy
+    if ($sanitized_cookie ~ '(.*)(^|;\s)auth_token=("[^"]*"|[^\s]*[^;]?)(\2|$|;$)(?:;\s)?(.*)') {
+        # cut "my_cookie" cookie from the string
+        set $sanitized_cookie $1$4$5;
+    }
+
+    if ($sanitized_cookie ~ '(.*)(^|;\s)auth_nonce=("[^"]*"|[^\s]*[^;]?)(\2|$|;$)(?:;\s)?(.*)') {
+        # cut "my_cookie" cookie from the string
+        set $sanitized_cookie $1$4$5;
+    }
+
+    proxy_hide_header Cookie;
+    proxy_set_header  Cookie $sanitized_cookie;
+    # Cookie rewrite END
+
     location = /_jwks_uri {
         internal;
         proxy_cache jwk;                              # Cache the JWK Set recieved from IdP
