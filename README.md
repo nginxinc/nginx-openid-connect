@@ -6,8 +6,24 @@ Reference implementation of NGINX Plus as relying party for OpenID Connect authe
 
 This repository describes how to enable OpenID Connect integration for [NGINX Plus](https://www.nginx.com/products/nginx/). The solution depends on NGINX Plus components ([auth_jwt module](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html) and [key-value store](http://nginx.org/en/docs/http/ngx_http_keyval_module.html)) and as such is not suitable for [open source NGINX](http://www.nginx.org/en).
 
-<img src=https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authorization-code-flow-NGINX-800x426-03.svg alt="OpenID Connect components" width=500>
-
+```mermaid
+flowchart BT
+    subgraph " "
+        direction LR
+        id1(User)==>|Request for app|id2
+        id2-. Unauthenticated .->id1
+        id2(NGINX+)-->|Authenticated|id3(Backend app)
+    end
+    subgraph IDP
+        id4(Authorization Server)
+    end
+    id1<-. User authenticates directly with IdP .->IDP
+    IDP<-. NGINX exchanges authorization code for ID token .->id2
+    style id1 fill:#fff,stroke:#444,stroke-width:3px,color:#222
+    style id3 fill:#fff,stroke:#444,stroke-width:3px,color:#222
+    style id2 fill:#009639,stroke:#215732,stroke-width:2px,color:#fff
+    style id4 fill:#666,stroke:#222,stroke-width:1px,color:#fff
+```
 `Figure 1. High level components of an OpenID Connect environment`
 
 This implementation assumes the following environment:
@@ -19,7 +35,31 @@ This implementation assumes the following environment:
 
 With this environment, both the client and NGINX Plus communicate directly with the IdP at different stages during the initial authentication event.
 
-![OpenID Connect protocol diagram](https://www.nginx.com/wp-content/uploads/2018/04/dia-LC-2018-03-30-OpenID-Connect-authentication-code-flow-detailed-800x840-03.svg)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Browser
+    participant IdP
+    participant NGINX Plus
+    participant Web App
+    User->>NGINX Plus: Requests protected resource
+    NGINX Plus->>Browser: Sends redirect to IdP for authentication
+    Browser->>IdP: Requests login page
+    User->>IdP: Provides authentication and consent
+    IdP->>Browser: Sends redirect w/ authZ code
+    Browser->>NGINX Plus: Redirected for code exchange
+    NGINX Plus->>IdP: Sends authZ code
+    IdP->>NGINX Plus: Sends ID(+refresh) token
+    NGINX Plus-->>NGINX Plus: Validates ID token, stores in keyval, creates session cookie
+    Note right of NGINX Plus: keyvals zone for ID token (JWT)
+    Note right of NGINX Plus: keyval zone for refresh token
+    NGINX Plus->>Browser: Sends redirect to original URI with session cookie
+    Browser->>NGINX Plus: Requests original URI, supplies session cookie
+    NGINX Plus-->>NGINX Plus: Obtains ID token from keyval, validates JWT
+    NGINX Plus->>Web App: Proxies request
+    Web App->>Browser: Sends resource
+```
 `Figure 2. OpenID Connect authorization code flow protocol`
 
 NGINX Plus is configured to perform OpenID Connect authentication. Upon a first visit to a protected resource, NGINX Plus initiates the OpenID Connect authorization code flow and redirects the client to the OpenID Connect provider (IdP). When the client returns to NGINX Plus with an authorization code, NGINX Plus exchanges that code for a set of tokens by communicating directly with the IdP.
