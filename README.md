@@ -80,6 +80,10 @@ For more information on OpenID Connect and JWT validation with NGINX Plus, see [
 
 If a [refresh token](https://openid.net/specs/openid-connect-core-1_0.html#RefreshTokens) was received from the IdP then it is also stored in the key-value store. When validation of the ID Token fails (typically upon expiry) then NGINX Plus sends the refresh token to the IdP. If the user's session is still valid at the IdP then a new ID token is received, validated, and updated in the key-value store. The refresh process is seamless to the client.
 
+### Userinfo Endpoint
+
+The [Userinfo Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo) is an OAuth 2.0 protected resource that returns claims about the authenticated End-User. For User Agent To obtain the requested claims about the End-User, NGINX Plus makes a request to the `$oidc_userinfo_endpoint` using an access token as the example of `/foobar` location in the config file of `frontend.conf`. These claims are normally represented by a JSON object that contains a collection of name and value pairs for the claims.
+
 ### Logout
 
 Requests made to the `/logout` location invalidate both the ID token, access token and refresh token by erasing them from the key-value store. Therefore, subsequent requests to protected resources will be treated as a first-time request and send the client to the IdP for authentication. Note that the IdP may issue cookies such that an authenticated session still exists at the IdP.
@@ -142,6 +146,7 @@ When NGINX Plus is deployed behind another proxy, the original protocol and port
     * Obtain the URL for `jwks_uri` or download the JWK file to your NGINX Plus instance
     * Obtain the URL for the **authorization endpoint**
     * Obtain the URL for the **token endpoint**
+    * Obtain the URL for the **userinfo endpoint**
 
 ## Configuring NGINX Plus
 
