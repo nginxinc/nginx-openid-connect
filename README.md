@@ -70,6 +70,18 @@ Subsequent requests to protected resources are authenticated by exchanging the s
 
 For more information on OpenID Connect and JWT validation with NGINX Plus, see [Authenticating Users to Existing Applications with OpenID Connect and NGINX Plus](https://www.nginx.com/blog/authenticating-users-existing-applications-openid-connect-nginx-plus/).
 
+### Client Authentication Methods
+
+When configuring NGINX Plus as an OpenID Connect client, it supports multiple client authentication methods:
+
+* **client_secret_basic**:
+  * The `client_id` and `client_secret` are sent in the Authorization header as a Base64-encoded string.
+* **client_secret_post**:
+  * The `client_id` and `client_secret` are sent in the body of the POST request.
+* **none** (PKCE):
+  * For public clients that cannot protect a client secret, the `code_verifier` is used instead of a `client_secret`.
+  * PKCE is particularly useful for mobile and single-page applications.
+
 ### Access Tokens
 
 [Access tokens](https://openid.net/specs/openid-connect-core-1_0.html#AccessTokenDisclosure) are used in token-based authentication to allow OIDC client to access a protected resource on behalf of the user. NGINX Plus receives an access token after a user successfully authenticates and authorizes access, and then stores it in the key-value store. NGINX Plus can pass that token on the HTTP Authorization header as a [Bearer token](https://oauth.net/2/bearer-tokens/) for every request that is sent to the downstream application.
@@ -136,6 +148,7 @@ When NGINX Plus is deployed behind another proxy, the original protocol and port
     * Choose the **authorization code flow**
     * Set the **redirect URI** to the address of your NGINX Plus instance (including the port number), with `/_codexch` as the path, e.g. `https://my-nginx.example.com:443/_codexch`
     * Ensure NGINX Plus is configured as a confidential client (with a client secret) or a public client (with PKCE S256 enabled)
+    * If NGINX Plus is configured as a confidential client, choose the appropriate authentication method: **client_secret_basic** or **client_secret_post**.
     * Make a note of the `client ID` and `client secret` if set
 
   * If your IdP supports OpenID Connect Discovery (usually at the URI `/.well-known/openid-configuration`) then use the `configure.sh` script to complete configuration. In this case you can skip the next section. Otherwise:
@@ -294,3 +307,4 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R22** Separate configuration file, supports multiple IdPs. Configurable scopes and cookie flags. JavaScript is imported as an indepedent module with `js_import`. Container-friendly logging. Additional metrics for OIDC activity.
   * **R23** PKCE support. Added support for deployments behind another proxy or load balancer.
   * **R28** Access token support. Added support for access token to authorize NGINX to access protected backend.
+  * **R32** Added support for `client_secret_basic` client authentication method.
