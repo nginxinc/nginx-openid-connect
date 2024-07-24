@@ -54,7 +54,7 @@ function auth(r, afterSyncCheck) {
 
     // Pass the refresh token to the /_refresh location so that it can be
     // proxied to the IdP in exchange for a new id_token
-    r.subrequest("/_refresh", "token=" + r.variables.refresh_token,
+    r.subrequest("/_refresh", generateTokenRequestParams(r, "refresh_token"),
         function(reply) {
             if (reply.status != 200) {
                 // Refresh request failed, log the reason
@@ -142,7 +142,7 @@ function codeExchange(r) {
 
     // Pass the authorization code to the /_token location so that it can be
     // proxied to the IdP in exchange for a JWT
-    r.subrequest("/_token",idpClientAuth(r), function(reply) {
+    r.subrequest("/_token", generateTokenRequestParams(r, "authorization_code"), function(reply) {
             if (reply.status == 504) {
                 r.error("OIDC timeout connecting to IdP when sending authorization code");
                 r.return(504);
@@ -337,12 +337,38 @@ function getAuthZArgs(r) {
     return authZArgs;
 }
 
-function idpClientAuth(r) {
-    // If PKCE is enabled we have to use the code_verifier
-    if ( r.variables.oidc_pkce_enable == 1 ) {
-        r.variables.pkce_id = r.variables.arg_state;
-        return "code=" + r.variables.arg_code + "&code_verifier=" + r.variables.pkce_code_verifier;
-    } else {
-        return "code=" + r.variables.arg_code + "&client_secret=" + r.variables.oidc_client_secret;
+function generateTokenRequestParams(r, grant_type) {
+    var body = "grant_type=" + grant_type + "&client_id=" + r.variables.oidc_client;
+
+    switch(grant_type) {
+        case "authorization_code":
+            body += "&code=" + r.variables.arg_code + "&redirect_uri=" + r.variables.redirect_base + r.variables.redir_location;
+            if (r.variables.oidc_pkce_enable == 1) {
+                r.variables.pkce_id = r.variables.arg_state;
+                body += "&code_verifier=" + r.variables.pkce_code_verifier;
+            }
+            break;
+        case "refresh_token":
+            body += "&refresh_token=" + r.variables.refresh_token;
+            break;
+        default:
+            r.error("Unsupported grant type: " + grant_type);
+            return;
     }
+
+    var options = {
+        body: body,
+        method: "POST"
+    };
+
+    if (r.variables.oidc_pkce_enable != 1) {
+        if (r.variables.oidc_client_auth_method === "client_secret_basic") {
+            let auth_basic = "Basic " + Buffer.from(r.variables.oidc_client + ":" + r.variables.oidc_client_secret).toString('base64');
+            options.args = "secret_basic=" + auth_basic;
+        } else {
+            options.body += "&client_secret=" + r.variables.oidc_client_secret;
+        }
+    }
+
+    return options;
 }
