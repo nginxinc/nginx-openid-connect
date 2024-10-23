@@ -3,8 +3,6 @@
  *
  * Copyright (C) 2020 Nginx, Inc.
  */
-var newSession = false; // Used by oidcAuth() and validateIdToken()
-
 export default {auth, codeExchange, validateIdToken, logout};
 
 function retryOriginalRequest(r) {
@@ -32,8 +30,6 @@ function auth(r, afterSyncCheck) {
     }
 
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
-        newSession = true;
-
         // Check we have all necessary configuration variables (referenced only by njs)
         var oidcConfigurables = ["authz_endpoint", "scopes", "hmac_key", "cookie_flags"];
         var missingConfig = [];
@@ -240,6 +236,8 @@ function validateIdToken(r) {
         r.error("OIDC ID Token validation error: aud claim (" + r.variables.jwt_audience + ") does not include configured $oidc_client (" + r.variables.oidc_client + ")");
         validToken = false;
     }
+
+    var newSession = (!r.variables.refresh_token || r.variables.refresh_token == "-");
 
     // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
     // to check that the JWT can be validated as being directly related to the
