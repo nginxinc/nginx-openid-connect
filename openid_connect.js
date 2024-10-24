@@ -237,12 +237,9 @@ function validateIdToken(r) {
         validToken = false;
     }
 
-    var newSession = (!r.variables.refresh_token || r.variables.refresh_token == "-");
-
-    // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
-    // to check that the JWT can be validated as being directly related to the
-    // original request by this client. This mitigates against token replay attacks.
-    if (newSession) {
+    // https://openid.net/specs/openid-connect-core-1_0.html#IDToken:
+    // "If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to the value of the nonce parameter sent in the Authentication Request."
+    if (r.variables.jwt_claim_nonce) {
         var client_nonce_hash = "";
         if (r.variables.cookie_auth_nonce) {
             var c = require('crypto');
@@ -252,6 +249,16 @@ function validateIdToken(r) {
         if (r.variables.jwt_claim_nonce != client_nonce_hash) {
             r.error("OIDC ID Token validation error: nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
             validToken = false;
+        }
+    } else {
+        var newSession = (!r.variables.refresh_token || r.variables.refresh_token == "-");
+        if (newSession) {
+            r.error("OIDC ID Token validation error: nonce absent in token");
+            validToken = false;
+        } else {
+            // Tolerate missing nonce on renewals
+            // https://github.com/nginxinc/nginx-openid-connect/pull/104#issuecomment-2433361196
+            r.warn("OIDC ID Token validation error: No nonce claim");
         }
     }
 
