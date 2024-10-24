@@ -237,7 +237,7 @@ function validateIdToken(r) {
         validToken = false;
     }
 
-    // https://openid.net/specs/openid-connect-core-1_0.html#IDToken:
+    // According to OIDC Core 1.0 Section 2:
     // "If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to the value of the nonce parameter sent in the Authentication Request."
     if (r.variables.jwt_claim_nonce) {
         var client_nonce_hash = "";
