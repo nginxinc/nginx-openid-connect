@@ -253,10 +253,6 @@ function validateIdToken(r) {
     } else if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
         r.error("OIDC ID Token validation error: nonce absent in first token of the session");
         validToken = false;
-    } else {
-        // Tolerate missing nonce on renewals
-        // https://github.com/nginxinc/nginx-openid-connect/pull/104#issuecomment-2433361196
-        r.warn("OIDC ID Token validation warning: No nonce claim in token aquired through refresh");
     }
 
     if (validToken) {
