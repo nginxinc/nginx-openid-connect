@@ -3,8 +3,6 @@
  *
  * Copyright (C) 2020 Nginx, Inc.
  */
-var newSession = false; // Used by oidcAuth() and validateIdToken()
-
 export default {auth, codeExchange, validateIdToken, logout};
 
 function retryOriginalRequest(r) {
@@ -32,8 +30,6 @@ function auth(r, afterSyncCheck) {
     }
 
     if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
-        newSession = true;
-
         // Check we have all necessary configuration variables (referenced only by njs)
         var oidcConfigurables = ["authz_endpoint", "scopes", "hmac_key", "cookie_flags"];
         var missingConfig = [];
@@ -241,10 +237,9 @@ function validateIdToken(r) {
         validToken = false;
     }
 
-    // If we receive a nonce in the ID Token then we will use the auth_nonce cookies
-    // to check that the JWT can be validated as being directly related to the
-    // original request by this client. This mitigates against token replay attacks.
-    if (newSession) {
+    // According to OIDC Core 1.0 Section 2:
+    // "If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to the value of the nonce parameter sent in the Authentication Request."
+    if (r.variables.jwt_claim_nonce) {
         var client_nonce_hash = "";
         if (r.variables.cookie_auth_nonce) {
             var c = require('crypto');
@@ -255,6 +250,9 @@ function validateIdToken(r) {
             r.error("OIDC ID Token validation error: nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
             validToken = false;
         }
+    } else if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
+        r.error("OIDC ID Token validation error: missing nonce claim in ID Token during initial authentication.");
+        validToken = false;
     }
 
     if (validToken) {
