@@ -250,16 +250,13 @@ function validateIdToken(r) {
             r.error("OIDC ID Token validation error: nonce from token (" + r.variables.jwt_claim_nonce + ") does not match client (" + client_nonce_hash + ")");
             validToken = false;
         }
+    } else if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
+        r.error("OIDC ID Token validation error: nonce absent in first token of the session");
+        validToken = false;
     } else {
-        var newSession = (!r.variables.refresh_token || r.variables.refresh_token == "-");
-        if (newSession) {
-            r.error("OIDC ID Token validation error: nonce absent in token");
-            validToken = false;
-        } else {
-            // Tolerate missing nonce on renewals
-            // https://github.com/nginxinc/nginx-openid-connect/pull/104#issuecomment-2433361196
-            r.warn("OIDC ID Token validation error: No nonce claim");
-        }
+        // Tolerate missing nonce on renewals
+        // https://github.com/nginxinc/nginx-openid-connect/pull/104#issuecomment-2433361196
+        r.warn("OIDC ID Token validation warning: No nonce claim in token aquired through refresh");
     }
 
     if (validToken) {
