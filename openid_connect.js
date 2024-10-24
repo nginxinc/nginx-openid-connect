@@ -251,7 +251,7 @@ function validateIdToken(r) {
             validToken = false;
         }
     } else if (!r.variables.refresh_token || r.variables.refresh_token == "-") {
-        r.error("OIDC ID Token validation error: nonce absent in first token of the session");
+        r.error("OIDC ID Token validation error: missing nonce claim in ID Token during initial authentication.");
         validToken = false;
     }
 
