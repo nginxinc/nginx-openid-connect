@@ -37,6 +37,12 @@
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
+
+        # Do not pass through body or headers from the client, this should be a net-new connection.
+        # Some IdPs, like Microsoft Entra, will throw CORS errors if client headers are passed through.
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+
         proxy_ssl_server_name on; # For SNI to the IdP
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_header      Authorization $arg_secret_basic;
@@ -48,6 +54,12 @@
         # use the proxy_ directives to construct the OpenID Connect token request, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
         internal;
+
+        # Do not pass through body or headers from the client, this should be a net-new connection.
+        # Some IdPs, like Microsoft Entra, will throw CORS errors if client headers are passed through.
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+
         proxy_ssl_server_name on; # For SNI to the IdP
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_header      Authorization $arg_secret_basic;
