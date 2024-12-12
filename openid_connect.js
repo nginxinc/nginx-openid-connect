@@ -44,7 +44,7 @@ function auth(r, afterSyncCheck) {
             return;
         }
         // Redirect the client to the IdP login page with the cookies we need for state
-        r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
+        r.return(302, r.variables.oidc_authz_endpoint + getQueryParamsAuthZ(r));
         return;
     }
 
@@ -303,16 +303,16 @@ function logout(r) {
     }
 }
 
-function getAuthZArgs(r) {
+function getQueryParamsAuthZ(r) {
     // Choose a nonce for this flow for the client, and hash it for the IdP
     var noncePlain = r.variables.request_id;
     var c = require('crypto');
     var h = c.createHmac('sha256', r.variables.oidc_hmac_key).update(noncePlain);
     var nonceHash = h.digest('base64url');
-    var authZArgs = "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash;
+    var queryParams = "?response_type=code&scope=" + r.variables.oidc_scopes + "&client_id=" + r.variables.oidc_client + "&redirect_uri="+ r.variables.redirect_base + r.variables.redir_location + "&nonce=" + nonceHash;
 
-    if (r.variables.oidc_authz_extra_args) {
-        authZArgs += "&" + r.variables.oidc_authz_extra_args;
+    if (r.variables.oidc_authz_extra_query_params) {
+        queryParams += "&" + r.variables.oidc_authz_extra_query_params;
     }
 
     var encodedRequestUri = encodeURIComponent(r.variables.request_uri);
@@ -328,11 +328,11 @@ function getAuthZArgs(r) {
         var pkce_code_challenge = c.createHash('sha256').update(pkce_code_verifier).digest('base64url');
         r.variables.pkce_code_verifier = pkce_code_verifier;
 
-        authZArgs += "&code_challenge_method=S256&code_challenge=" + pkce_code_challenge + "&state=" + r.variables.pkce_id;
+        queryParams += "&code_challenge_method=S256&code_challenge=" + pkce_code_challenge + "&state=" + r.variables.pkce_id;
     } else {
-        authZArgs += "&state=0";
+        queryParams += "&state=0";
     }
-    return authZArgs;
+    return queryParams;
 }
 
 function generateTokenRequestParams(r, grant_type) {
