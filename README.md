@@ -100,6 +100,10 @@ Requests made to the `/logout` location invalidate both the ID token, access tok
 
 RP-initiated logout is supported according to [OpenID Connect RP-Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). This behavior is controlled by the `$oidc_end_session_endpoint` variable.
 
+#### Front-Channel OIDC Logout
+
+Front-Channel Logout is supported according to [OpenID Connect Front-Channel Logout 1.0](https://openid.net/specs/openid-connect-frontchannel-1_0.html). The `/front_channel_logout endpoint` location handles logout requests from the IdP. Both arguments, `sid` (session identifier) and `iss` (issuer identifier), must be present.
+
 ### Multiple IdPs
 
 Where NGINX Plus is configured to proxy requests for multiple websites or applications, or user groups, these may require authentication by different IdPs. Separate IdPs can be configured, with each one matching on an attribute of the HTTP request, e.g. hostname or part of the URI path.
@@ -198,6 +202,7 @@ The key-value store is used to maintain persistent storage for ID tokens and ref
 keyval_zone zone=oidc_id_tokens:1M     state=/var/lib/nginx/state/oidc_id_tokens.json     timeout=1h;
 keyval_zone zone=oidc_access_tokens:1M state=/var/lib/nginx/state/oidc_access_tokens.json timeout=1h;
 keyval_zone zone=refresh_tokens:1M     state=/var/lib/nginx/state/refresh_tokens.json     timeout=8h;
+keyval_zone zone=oidc_sids:1M          state=/var/lib/nginx/state/oidc_sids.json          timeout=8h;
 keyval_zone zone=oidc_pkce:128K timeout=90s;
 ```
 
@@ -314,3 +319,4 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R23** PKCE support. Added support for deployments behind another proxy or load balancer.
   * **R28** Access token support. Added support for access token to authorize NGINX to access protected backend.
   * **R32** Added support for `client_secret_basic` client authentication method.
+  * **R33** Refactor code to use async/await. Implement Front-Channel Logout endpoint.
