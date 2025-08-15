@@ -131,21 +131,21 @@ function validateIdTokenClaims(r, claims) {
     const missingClaims = requiredClaims.filter((claim) => !claims[claim]);
 
     if (missingClaims.length > 0) {
-        r.error(`OIDC ID Token validation error for " + r.headersIn['host'] + r.uri + ": missing claim(s) ${missingClaims.join(' ')}`);
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: missing claim(s) ${missingClaims.join(' ')}`);
         return false;
     }
 
     // Check 'iat' validity
     const iat = Math.floor(Number(claims.iat));
     if (String(iat) !== claims.iat || iat < 1) {
-        r.error("OIDC ID Token validation error for " + r.headersIn['host'] + r.uri + ": iat claim is not a valid number");
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: iat claim is not a valid number`);
         return false;
     }
 
     // Audience must include the configured client
     const aud = Array.isArray(claims.aud) ? claims.aud : claims.aud.split(',');
     if (!aud.includes(r.variables.oidc_client)) {
-        r.error(`OIDC ID Token validation error for " + r.headersIn['host'] + r.uri + ": aud claim (${claims.aud}) ` +
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: aud claim (${claims.aud}) ` +
                 `does not include $oidc_client (${r.variables.oidc_client})`);
         return false;
     }
@@ -160,13 +160,13 @@ function validateIdTokenClaims(r, claims) {
             : '';
 
         if (claims.nonce !== clientNonceHash) {
-            r.error(`OIDC ID Token validation error for " + r.headersIn['host'] + r.uri + ": nonce from token (${claims.nonce}) ` +
+            r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: nonce from token (${claims.nonce}) ` +
                     `does not match client (${clientNonceHash})`);
             return false;
         }
     } else if (isNewSession(r)) {
-        r.error("OIDC ID Token validation error for " + r.headersIn['host'] + r.uri + ": " +
-                "missing nonce claim during initial authentication.");
+        r.error("OIDC ID Token validation error for " + r.headersIn['host'] + r.uri +
+                ": missing nonce claim during initial authentication.");
         return false;
     }
 
@@ -269,7 +269,7 @@ async function refreshTokens(r) {
         if (!tokenset.id_token) {
             r.error("OIDC refresh response for " + r.headersIn['host'] + r.uri + " did not include id_token");
             if (tokenset.error) {
-                r.error("OIDC for " + r.headersIn['host'] + r.uri + " " + tokenset.error + " " + tokenset.error_description);
+                r.error("OIDC error for " + r.headersIn['host'] + r.uri + " " + tokenset.error + " " + tokenset.error_description);
             }
             return null;
         }
@@ -373,7 +373,7 @@ async function handleFrontChannelLogout(r) {
 
     const claims = await getTokenClaims(r, sessionJwt);
     if (claims.iss !== requestIss) {
-        r.error("Issuer mismatch during logout for " + r.headersIn['host'] + r.uri + " Received iss: " +
+        r.error("Issuer mismatch during logout for " + r.headersIn['host'] + r.uri + ": Received iss: " +
                 requestIss + ", expected: " + claims.iss);
         r.return(400, "Issuer mismatch");
         return;
