@@ -56,10 +56,10 @@ async function codeExchange(r) {
     // Check authorization code presence
     if (!r.variables.arg_code || r.variables.arg_code.length == 0) {
         if (r.variables.arg_error) {
-            r.error("OIDC error receiving authorization code for " + r.headersIn['host'] + r.uri + ": " +
+            r.error("OIDC error receiving authorization code for " + r.headersIn['Host'] + r.uri + ": " +
                     r.variables.arg_error_description);
         } else {
-            r.error("OIDC expected authorization code for " + r.headersIn['host'] + " but received: " + r.uri);
+            r.error("OIDC expected authorization code for " + r.headersIn['Host'] + " but received: " + r.uri);
         }
         r.return(502);
         return;
@@ -95,7 +95,7 @@ function getTokenClaims(r, token) {
         r.subrequest('/_token_validation', 'token=' + token,
             function(reply) {
                 if (reply.status !== 200) {
-                    r.error("Failed to retrieve claims for " + r.headersIn['host'] + r.uri + ": HTTP " + reply.status);
+                    r.error("Failed to retrieve claims for " + r.headersIn['Host'] + r.uri + ": HTTP " + reply.status);
                     resolve(null);
                     return;
                 }
@@ -103,7 +103,7 @@ function getTokenClaims(r, token) {
                     const claims = JSON.parse(reply.responseText);
                     resolve(claims);
                 } catch (e) {
-                    r.error("Failed to parse claims for " + r.headersIn['host'] + r.uri + ": " + e);
+                    r.error("Failed to parse claims for " + r.headersIn['Host'] + r.uri + ": " + e);
                     resolve(null);
                 }
             }
@@ -131,21 +131,21 @@ function validateIdTokenClaims(r, claims) {
     const missingClaims = requiredClaims.filter((claim) => !claims[claim]);
 
     if (missingClaims.length > 0) {
-        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: missing claim(s) ${missingClaims.join(' ')}`);
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['Host'] + r.uri + `: missing claim(s) ${missingClaims.join(' ')}`);
         return false;
     }
 
     // Check 'iat' validity
     const iat = Math.floor(Number(claims.iat));
     if (String(iat) !== claims.iat || iat < 1) {
-        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: iat claim is not a valid number`);
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['Host'] + r.uri + `: iat claim is not a valid number`);
         return false;
     }
 
     // Audience must include the configured client
     const aud = Array.isArray(claims.aud) ? claims.aud : claims.aud.split(',');
     if (!aud.includes(r.variables.oidc_client)) {
-        r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: aud claim (${claims.aud}) ` +
+        r.error(`OIDC ID Token validation error for ` + r.headersIn['Host'] + r.uri + `: aud claim (${claims.aud}) ` +
                 `does not include $oidc_client (${r.variables.oidc_client})`);
         return false;
     }
@@ -160,12 +160,12 @@ function validateIdTokenClaims(r, claims) {
             : '';
 
         if (claims.nonce !== clientNonceHash) {
-            r.error(`OIDC ID Token validation error for ` + r.headersIn['host'] + r.uri + `: nonce from token (${claims.nonce}) ` +
+            r.error(`OIDC ID Token validation error for ` + r.headersIn['Host'] + r.uri + `: nonce from token (${claims.nonce}) ` +
                     `does not match client (${clientNonceHash})`);
             return false;
         }
     } else if (isNewSession(r)) {
-        r.error("OIDC ID Token validation error for " + r.headersIn['host'] + r.uri +
+        r.error("OIDC ID Token validation error for " + r.headersIn['Host'] + r.uri +
                 ": missing nonce claim during initial authentication.");
         return false;
     }
@@ -227,7 +227,7 @@ async function exchangeCodeForTokens(r) {
     });
 
     if (reply.status === 504) {
-        r.error("OIDC timeout connecting to IdP during code exchange for " + r.headersIn['host'] + r.uri);
+        r.error("OIDC timeout connecting to IdP during code exchange for " + r.headersIn['Host'] + r.uri);
         r.return(504);
         return null;
     }
@@ -241,13 +241,13 @@ async function exchangeCodeForTokens(r) {
     try {
         const tokenset = JSON.parse(reply.responseText);
         if (tokenset.error) {
-            r.error("OIDC  for " + r.headersIn['host'] + r.uri + " " + tokenset.error + " " + tokenset.error_description);
+            r.error("OIDC for " + r.headersIn['Host'] + r.uri + ": " + tokenset.error + " " + tokenset.error_description);
             r.return(500);
             return null;
         }
         return tokenset;
     } catch (e) {
-        r.error("OIDC token response not JSON for " + r.headersIn['host'] + r.uri + ": " + reply.responseText);
+        r.error("OIDC token response not JSON for " + r.headersIn['Host'] + r.uri + ": " + reply.responseText);
         r.return(502);
         return null;
     }
@@ -267,9 +267,9 @@ async function refreshTokens(r) {
     try {
         const tokenset = JSON.parse(reply.responseText);
         if (!tokenset.id_token) {
-            r.error("OIDC refresh response for " + r.headersIn['host'] + r.uri + " did not include id_token");
+            r.error("OIDC refresh response for " + r.headersIn['Host'] + r.uri + " did not include id_token");
             if (tokenset.error) {
-                r.error("OIDC error for " + r.headersIn['host'] + r.uri + " " + tokenset.error + " " + tokenset.error_description);
+                r.error("OIDC error for " + r.headersIn['Host'] + r.uri + " " + tokenset.error + " " + tokenset.error_description);
             }
             return null;
         }
@@ -336,13 +336,13 @@ async function handleFrontChannelLogout(r) {
 
     // Validate input parameters
     if (!sid) {
-        r.error("Missing sid parameter in front-channel logout request for " + r.headersIn['host'] + r.uri);
+        r.error("Missing sid parameter in front-channel logout request for " + r.headersIn['Host'] + r.uri);
         r.return(400, "Missing sid");
         return;
     }
 
     if (!requestIss) {
-        r.error("Missing iss parameter in front-channel logout request for " + r.headersIn['host'] + r.uri);
+        r.error("Missing iss parameter in front-channel logout request for " + r.headersIn['Host'] + r.uri);
         r.return(400, "Missing iss");
         return;
     }
@@ -373,7 +373,7 @@ async function handleFrontChannelLogout(r) {
 
     const claims = await getTokenClaims(r, sessionJwt);
     if (claims.iss !== requestIss) {
-        r.error("Issuer mismatch during logout for " + r.headersIn['host'] + r.uri + ": Received iss: " +
+        r.error("Issuer mismatch during logout for " + r.headersIn['Host'] + r.uri + ": Received iss: " +
                 requestIss + ", expected: " + claims.iss);
         r.return(400, "Issuer mismatch");
         return;
@@ -401,7 +401,7 @@ function initiateNewAuth(r) {
     );
 
     if (missingConfig.length) {
-        r.error("OIDC missing configuration variables for " + r.headersIn['host'] + r.uri + ": $oidc_" + missingConfig.join(" $oidc_"));
+        r.error("OIDC missing configuration variables for " + r.headersIn['Host'] + r.uri + ": $oidc_" + missingConfig.join(" $oidc_"));
         r.return(500, r.variables.internal_error_message);
         return;
     }
@@ -467,7 +467,7 @@ function generateTokenRequestParams(r, grant_type) {
             body += "&refresh_token=" + r.variables.refresh_token;
             break;
         default:
-            r.error("Unsupported grant type for " + r.headersIn['host'] + r.uri + ": " + grant_type);
+            r.error("Unsupported grant type for " + r.headersIn['Host'] + r.uri + ": " + grant_type);
             return;
     }
 
@@ -493,21 +493,21 @@ function handleTokenError(r, reply) {
     try {
         const errorset = JSON.parse(reply.responseText);
         if (errorset.error) {
-            r.error("OIDC error from IdP during token exchange for " + r.headersIn['host'] + r.uri + ": " +
+            r.error("OIDC error from IdP during token exchange for " + r.headersIn['Host'] + r.uri + ": " +
                     errorset.error + ", " + errorset.error_description);
         } else {
-            r.error("OIDC unexpected response from IdP for " + r.headersIn['host'] + r.uri + " (HTTP " +
+            r.error("OIDC unexpected response from IdP for " + r.headersIn['Host'] + r.uri + " (HTTP " +
                     reply.status + "). " + reply.responseText);
         }
     } catch (e) {
-        r.error("OIDC unexpected response from IdP for " + r.headersIn['host'] + r.uri + " (HTTP " + reply.status + "). " +
+        r.error("OIDC unexpected response from IdP for " + r.headersIn['Host'] + r.uri + " (HTTP " + reply.status + "). " +
                 reply.responseText);
     }
 }
 
 
 function handleRefreshError(r, reply) {
-    let errorLog = "OIDC refresh failure for " + r.headersIn['host'] + r.uri;
+    let errorLog = "OIDC refresh failure for " + r.headersIn['Host'] + r.uri;
     if (reply.status === 504) {
         errorLog += ", timeout waiting for IdP";
     } else if (reply.status === 400) {
