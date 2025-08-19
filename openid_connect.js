@@ -1,7 +1,7 @@
 /*
  * JavaScript functions for providing OpenID Connect with NGINX Plus
  *
- * Copyright (C) 2024 Nginx, Inc.
+ * Copyright (C) 2025 Nginx, Inc.
  */
 
 export default {
@@ -33,11 +33,14 @@ async function auth(r, afterSyncCheck) {
     }
 
     // Validate refreshed ID token
-    const claims = await validateIdToken(r, tokenset.id_token);
-    if (!claims) {
+    let claims;
+    try {
+        claims = await validateIdToken(r, tokenset.id_token);
+    } catch (e) {
         // If validation failed, reset and reinitiate auth
         r.variables.refresh_token = "-";
-        r.return(302, r.variables.request_uri);
+        r.headersOut["Location"] = r.variables.request_uri;
+        oidcError(r, 302, getRefId(r, "auth.validate"), e);
         return;
     }
 
@@ -51,17 +54,20 @@ async function auth(r, afterSyncCheck) {
     retryOriginalRequest(r);
 }
 
-// The code exchange handler, called after IdP redirects back with a authorization code.
+// The code exchange handler, called after IdP redirects back with an authorization code.
 async function codeExchange(r) {
     // Check authorization code presence
-    if (!r.variables.arg_code || r.variables.arg_code.length == 0) {
+    if (!r.variables.arg_code || r.variables.arg_code.length === 0) {
+        const ref = getRefId(r, "codeExchange.code");
         if (r.variables.arg_error) {
-            r.error("OIDC error receiving authorization code: " +
-                    r.variables.arg_error_description);
+            oidcError(r, 502, ref,
+                new Error(`OIDC error receiving authorization code: ` +
+                    `${r.variables.arg_error_description || r.variables.arg_error}`));
         } else {
-            r.error("OIDC expected authorization code but received: " + r.uri);
+            oidcError(r, 502, ref,
+                new Error(`OIDC expected authorization code but received: ` +
+                    `${r.variables.request_uri}`));
         }
-        r.return(502);
         return;
     }
 
@@ -72,9 +78,11 @@ async function codeExchange(r) {
     }
 
     // Validate ID token
-    const claims = await validateIdToken(r, tokenset.id_token);
-    if (!claims) {
-        r.return(500);
+    let claims;
+    try {
+        claims = await validateIdToken(r, tokenset.id_token);
+    } catch (e) {
+        oidcError(r, 500, getRefId(r, "codeExchange.validate"), e);
         return;
     }
 
@@ -91,20 +99,18 @@ async function codeExchange(r) {
 
 // Extracts claims from token by calling the internal endpoint.
 function getTokenClaims(r, token) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         r.subrequest('/_token_validation', 'token=' + token,
             function(reply) {
                 if (reply.status !== 200) {
-                    r.error("Failed to retrieve claims: HTTP " + reply.status);
-                    resolve(null);
+                    reject(new Error(`Failed to retrieve claims: HTTP ${reply.status}`));
                     return;
                 }
                 try {
                     const claims = JSON.parse(reply.responseText);
                     resolve(claims);
                 } catch (e) {
-                    r.error("Failed to parse claims: " + e);
-                    resolve(null);
+                    reject(new Error(`Failed to parse claims: ${e}`));
                 }
             }
         );
@@ -114,14 +120,7 @@ function getTokenClaims(r, token) {
 // Extracts and validates claims from the ID Token.
 async function validateIdToken(r, idToken) {
     const claims = await getTokenClaims(r, idToken);
-    if (!claims) {
-        return null;
-    }
-
-    if (!validateIdTokenClaims(r, claims)) {
-        return null;
-    }
-
+    validateIdTokenClaims(r, claims);
     return claims;
 }
 
@@ -131,23 +130,24 @@ function validateIdTokenClaims(r, claims) {
     const missingClaims = requiredClaims.filter((claim) => !claims[claim]);
 
     if (missingClaims.length > 0) {
-        r.error(`OIDC ID Token validation error: missing claim(s) ${missingClaims.join(' ')}`);
-        return false;
+        throw new Error(
+            `OIDC ID Token validation error: missing claim(s) ${missingClaims.join(' ')}`
+        );
     }
 
     // Check 'iat' validity
     const iat = Math.floor(Number(claims.iat));
     if (String(iat) !== claims.iat || iat < 1) {
-        r.error("OIDC ID Token validation error: iat claim is not a valid number");
-        return false;
+        throw new Error("OIDC ID Token validation error: iat claim is not a valid number");
     }
 
     // Audience must include the configured client
     const aud = Array.isArray(claims.aud) ? claims.aud : claims.aud.split(',');
     if (!aud.includes(r.variables.oidc_client)) {
-        r.error(`OIDC ID Token validation error: aud claim (${claims.aud}) ` +
-                `does not include $oidc_client (${r.variables.oidc_client})`);
-        return false;
+        throw new Error(
+            `OIDC ID Token validation error: aud claim (${claims.aud}) ` +
+            `does not include $oidc_client (${r.variables.oidc_client})`
+        );
     }
 
     // Nonce validation for initial authentication
@@ -160,17 +160,16 @@ function validateIdTokenClaims(r, claims) {
             : '';
 
         if (claims.nonce !== clientNonceHash) {
-            r.error(`OIDC ID Token validation error: nonce from token (${claims.nonce}) ` +
-                    `does not match client (${clientNonceHash})`);
-            return false;
+            throw new Error(
+                `OIDC ID Token validation error: nonce from token (${claims.nonce}) ` +
+                `does not match client (${clientNonceHash})`
+            );
         }
     } else if (isNewSession(r)) {
-        r.error("OIDC ID Token validation error: " +
-                "missing nonce claim during initial authentication.");
-        return false;
+        throw new Error(
+            "OIDC ID Token validation error: missing nonce claim during initial authentication."
+        );
     }
-
-    return true;
 }
 
 // Store session data in the key-val store
@@ -222,41 +221,70 @@ function isNewSession(r) {
 
 // Exchange authorization code for tokens using the internal /_token endpoint
 async function exchangeCodeForTokens(r) {
+    let params;
+    try {
+        params = generateTokenRequestParams(r, "authorization_code");
+    } catch (e) {
+        oidcError(r, 500, getRefId(r, "token.params"), e);
+        return null;
+    }
     const reply = await new Promise((resolve) => {
-        r.subrequest("/_token", generateTokenRequestParams(r, "authorization_code"), resolve);
+        r.subrequest("/_token", params, resolve);
     });
 
+    const ref = getRefId(r, "token.exchange");
+
     if (reply.status === 504) {
-        r.error("OIDC timeout connecting to IdP during code exchange");
-        r.return(504);
+        oidcError(r, 504, ref, new Error("OIDC timeout connecting to IdP during code exchange"));
         return null;
     }
 
     if (reply.status !== 200) {
-        handleTokenError(r, reply);
-        r.return(502);
+        let message;
+        try {
+            const errorset = JSON.parse(reply.responseText);
+            if (errorset.error) {
+                message = `OIDC error from IdP during token exchange: ${errorset.error}, ` +
+                         `${errorset.error_description || ""}`;
+            } else {
+                message = `OIDC unexpected response from IdP (HTTP ${reply.status}). ` +
+                         `${reply.responseText}`;
+            }
+        } catch (_e) {
+            message = `OIDC unexpected response from IdP (HTTP ${reply.status}). ` +
+                     `${reply.responseText}`;
+        }
+        oidcError(r, 502, ref, new Error(message));
         return null;
     }
 
     try {
         const tokenset = JSON.parse(reply.responseText);
         if (tokenset.error) {
-            r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
-            r.return(500);
+            oidcError(r, 500, ref,
+                new Error(`OIDC token response error: ${tokenset.error}` +
+                    ` ${tokenset.error_description}`)
+            );
             return null;
         }
         return tokenset;
-    } catch (e) {
-        r.error("OIDC token response not JSON: " + reply.responseText);
-        r.return(502);
+    } catch (_e) {
+        oidcError(r, 502, ref, new Error(`OIDC token response not JSON: ${reply.responseText}`));
         return null;
     }
 }
 
 // Refresh tokens using the internal /_refresh endpoint
 async function refreshTokens(r) {
+    let params;
+    try {
+        params = generateTokenRequestParams(r, "refresh_token");
+    } catch (e) {
+        oidcError(r, 500, getRefId(r, "refresh.params"), e);
+        return null;
+    }
     const reply = await new Promise((resolve) => {
-        r.subrequest("/_refresh", generateTokenRequestParams(r, "refresh_token"), resolve);
+        r.subrequest("/_refresh", params, resolve);
     });
 
     if (reply.status !== 200) {
@@ -267,16 +295,15 @@ async function refreshTokens(r) {
     try {
         const tokenset = JSON.parse(reply.responseText);
         if (!tokenset.id_token) {
-            r.error("OIDC refresh response did not include id_token");
-            if (tokenset.error) {
-                r.error("OIDC " + tokenset.error + " " + tokenset.error_description);
-            }
+            r.log("OIDC refresh response did not include id_token" +
+                  (tokenset.error ? ("; " + tokenset.error + " " + tokenset.error_description) : ""));
             return null;
         }
         return tokenset;
-    } catch (e) {
+    } catch (_e) {
         r.variables.refresh_token = "-";
-        r.return(302, r.variables.request_uri);
+        r.headersOut["Location"] = r.variables.request_uri;
+        oidcError(r, 302, getRefId(r, "refresh.parse"), new Error("OIDC refresh response not JSON"));
         return null;
     }
 }
@@ -295,10 +322,13 @@ function logout(r) {
     async function performLogout(redirectUrl, idToken) {
         // Clean up $idp_sid -> $client_sid mapping
         if (idToken && idToken !== '-') {
-            const claims = await getTokenClaims(r, idToken);
-            if (claims.sid) {
-                r.variables.idp_sid = claims.sid;
-                r.variables.client_sid = '-';
+            try {
+                const claims = await getTokenClaims(r, idToken);
+                if (claims.sid) {
+                    r.variables.idp_sid = claims.sid;
+                    r.variables.client_sid = '-';
+                }
+            } catch (_e) {
             }
         }
 
@@ -336,14 +366,14 @@ async function handleFrontChannelLogout(r) {
 
     // Validate input parameters
     if (!sid) {
-        r.error("Missing sid parameter in front-channel logout request");
-        r.return(400, "Missing sid");
+        oidcError(r, 400, getRefId(r, "frontchannel.missingSid"),
+            new Error("Missing sid parameter in front-channel logout request"));
         return;
     }
 
     if (!requestIss) {
-        r.error("Missing iss parameter in front-channel logout request");
-        r.return(400, "Missing iss");
+        oidcError(r, 400, getRefId(r, "frontchannel.missingIss"),
+            new Error("Missing iss parameter in front-channel logout request"));
         return;
     }
 
@@ -371,11 +401,18 @@ async function handleFrontChannelLogout(r) {
         return;
     }
 
-    const claims = await getTokenClaims(r, sessionJwt);
+    let claims;
+    try {
+        claims = await getTokenClaims(r, sessionJwt);
+    } catch (e) {
+        oidcError(r, 400, getRefId(r, "frontchannel.claims"), e);
+        return;
+    }
+
     if (claims.iss !== requestIss) {
-        r.error("Issuer mismatch during logout. Received iss: " +
-                requestIss + ", expected: " + claims.iss);
-        r.return(400, "Issuer mismatch");
+        oidcError(r, 400, getRefId(r, "frontchannel.issMismatch"),
+            new Error(`Issuer mismatch during logout. ` +
+                `Received iss: ${requestIss}, expected: ${claims.iss}`));
         return;
     }
 
@@ -401,8 +438,10 @@ function initiateNewAuth(r) {
     );
 
     if (missingConfig.length) {
-        r.error("OIDC missing configuration variables: $oidc_" + missingConfig.join(" $oidc_"));
-        r.return(500, r.variables.internal_error_message);
+        oidcError(r, 500, getRefId(r, "init.missingConfig"),
+            new Error(`OIDC missing configuration variables: $oidc_` +
+                `${missingConfig.join(" $oidc_")}`)
+        );
         return;
     }
 
@@ -467,8 +506,7 @@ function generateTokenRequestParams(r, grant_type) {
             body += "&refresh_token=" + r.variables.refresh_token;
             break;
         default:
-            r.error("Unsupported grant type: " + grant_type);
-            return;
+            throw new Error("Unsupported grant type: " + grant_type);
     }
 
     var options = {
@@ -489,40 +527,27 @@ function generateTokenRequestParams(r, grant_type) {
     return options;
 }
 
-function handleTokenError(r, reply) {
-    try {
-        const errorset = JSON.parse(reply.responseText);
-        if (errorset.error) {
-            r.error("OIDC error from IdP during token exchange: " +
-                    errorset.error + ", " + errorset.error_description);
-        } else {
-            r.error("OIDC unexpected response from IdP (HTTP " +
-                    reply.status + "). " + reply.responseText);
-        }
-    } catch (e) {
-        r.error("OIDC unexpected response from IdP (HTTP " + reply.status + "). " +
-                reply.responseText);
-    }
-}
-
-
+// Handle refresh error: log + reset refresh + redirect 302 to original request
 function handleRefreshError(r, reply) {
+    const ref = getRefId(r, "refresh.error");
     let errorLog = "OIDC refresh failure";
+
     if (reply.status === 504) {
         errorLog += ", timeout waiting for IdP";
     } else if (reply.status === 400) {
         try {
             const errorset = JSON.parse(reply.responseText);
             errorLog += ": " + errorset.error + " " + errorset.error_description;
-        } catch (e) {
+        } catch (_e) {
             errorLog += ": " + reply.responseText;
         }
     } else {
         errorLog += " " + reply.status;
     }
-    r.error(errorLog);
+
     r.variables.refresh_token = "-";
-    r.return(302, r.variables.request_uri);
+    r.headersOut["Location"] = r.variables.request_uri;
+    oidcError(r, 302, ref, new Error(errorLog));
 }
 
 /* If the ID token has not been synced yet, poll the variable every 100ms until
@@ -540,4 +565,50 @@ function waitForSessionSync(r, timeLeft) {
 function retryOriginalRequest(r) {
     delete r.headersOut["WWW-Authenticate"];
     r.internalRedirect(r.variables.uri + r.variables.is_args + (r.variables.args || ''));
+}
+
+function oidcError(r, http_code, refId, e) {
+    const hasDebug = !!r.variables.oidc_debug;
+    const msg = (e && e.message) ? String(e.message) : (e ? String(e) : "Unexpected Error");
+    const stack = (hasDebug && e && e.stack) ? String(e.stack) : "";
+
+    const clientIp = r.remoteAddress || "-";
+    const host = r.headersIn.host || r.variables.host || "-";
+    const requestLine = `${r.method} ${r.uri} HTTP/${r.httpVersion}`;
+
+    if (r.variables.oidc_log_format === "json") {
+        const errorObj = {
+            refId: refId,
+            message: msg,
+            clientIp: clientIp,
+            host: host,
+            method: r.method,
+            uri: r.uri,
+            httpVersion: r.httpVersion
+        };
+        if (stack) {
+            errorObj.stack = stack;
+        }
+        r.error(JSON.stringify(errorObj));
+    } else {
+        let logEntry = `OIDC Error: ReferenceID: ${refId} ${msg}; ` +
+                       `client: ${clientIp}, host: ${host}, request: "${requestLine}"`;
+        if (stack) {
+            logEntry += `\n${stack}`;
+        }
+        r.error(logEntry);
+    }
+
+    if (hasDebug) {
+        r.variables.internal_error_message = stack
+            ? `ReferenceID: ${refId} ${msg}\n${stack}`
+            : `ReferenceID: ${refId} ${msg}`;
+    }
+
+    r.return(http_code);
+}
+
+function getRefId(r, context) {
+    const base = (r.variables.request_id).substring(0, 8);
+    return context ? `${base}:${context}` : base;
 }
