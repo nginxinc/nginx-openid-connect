@@ -190,6 +190,8 @@ Manual configuration involves reviewing the following files so that they match y
     * No changes are usually required here
     * Modify the `resolver` directive to match a DNS server that is capable of resolving the IdP defined in `$oidc_token_endpoint` and `$oidc_end_session_endpoint`
     * If using [`auth_jwt_key_request`](http://nginx.org/en/docs/http/ngx_http_auth_jwt_module.html#auth_jwt_key_request) to automatically fetch the JWK file from the IdP then modify the validity period and other caching options to suit your IdP
+    * TLS certificate verification for all IdP-bound requests (token, refresh, JWKS) is enabled by default. NGINX Plus uses the system CA bundle at `/etc/ssl/certs/ca-certificates.crt` (via [`proxy_ssl_trusted_certificate`](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_trusted_certificate)) to validate the IdP’s TLS certificate. If the IdP’s certificate is signed by a private or custom CA, append that CA to this bundle or update the `proxy_ssl_trusted_certificate` path accordingly.
+    * The [`proxy_ssl_verify_depth`](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_verify_depth) directive is set to **2** by default, allowing one intermediate CA in the chain. This is sufficient for most public IdPs.
 
   * **openid_connect.js** - this is the JavaScript code for performing the authorization code exchange and nonce hashing
     * No changes are required unless modifying the code exchange or validation process
@@ -320,3 +322,4 @@ This reference implementation for OpenID Connect is supported for NGINX Plus sub
   * **R28** Access token support. Added support for access token to authorize NGINX to access protected backend.
   * **R32** Added support for `client_secret_basic` client authentication method.
   * **R33** Refactor code to use async/await. Implement Front-Channel Logout endpoint.
+  * **R36** Enable TLS certificate verification for all IdP-bound requests by default.
