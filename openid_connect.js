@@ -46,7 +46,7 @@ async function auth(r, afterSyncCheck) {
 
     // Determine session ID and store session data
     const sessionId = getSessionId(r, false);
-    storeSessionData(r, sessionId, claims, tokenset, true);
+    storeSessionData(r, sessionId, claims, tokenset, false);
 
     r.log("OIDC success, refreshing session " + sessionId);
 
