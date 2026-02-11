@@ -1,0 +1,67 @@
+name: OIDC test suite
+run-name: ${{ github.actor }} is triggering pipeline
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test-njs-oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+  
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-transport-https lsb-release apt-utils ubuntu-keyring gnupg2 \
+          ca-certificates wget mercurial
+
+      - name: Prepare keys and certificates
+        run: |
+          sudo mkdir /etc/ssl/nginx
+          echo '${{ secrets.NGINX_REPO_CRT }}' | sudo tee /etc/ssl/nginx/nginx-repo.crt > /dev/null
+          echo '${{ secrets.NGINX_REPO_KEY }}' | sudo tee /etc/ssl/nginx/nginx-repo.key > /dev/null
+
+      - name: Prepare NGINX Plus license token
+        run: |
+          echo '${{ secrets.NGINX_LIC }}' | tee $RUNNER_TEMP/lic > /dev/null
+
+      - name: Import NGINX Plus signing key
+        run: |
+          wget -qO - https://cs.nginx.com/static/keys/nginx_signing.key \
+          | gpg --dearmor \
+          | sudo tee /usr/share/keyrings/nginx-archive-keyring.gpg > /dev/null
+
+      - name: Configure NGINX Plus repository
+        run: |
+          echo "Acquire::https::pkgs-test.nginx.com::Verify-Peer \"true\";" | sudo tee -a /etc/apt/apt.conf.d/90nginx
+          echo "Acquire::https::pkgs-test.nginx.com::Verify-Host \"true\";" | sudo tee -a /etc/apt/apt.conf.d/90nginx
+          echo "Acquire::https::pkgs-test.nginx.com::SslCert     \"/etc/ssl/nginx/nginx-repo.crt\";" \
+          | sudo tee -a /etc/apt/apt.conf.d/90nginx
+          echo "Acquire::https::pkgs-test.nginx.com::SslKey      \"/etc/ssl/nginx/nginx-repo.key\";" \
+          | sudo tee -a /etc/apt/apt.conf.d/90nginx
+          printf "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
+          https://pkgs-test.nginx.com/nightly/ubuntu $(lsb_release -cs) nginx-plus\n" \
+          | sudo tee /etc/apt/sources.list.d/nginx-plus.list
+
+      - name: Install NGINX Plus
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx-plus nginx-plus-module-njs
+
+      - name: Install Perl
+        run: |
+          sudo apt-get install -y perl libio-socket-ssl-perl
+
+      - name: Checkout nginx-test
+        run: |
+          git clone https://github.com/nginx/nginx-tests.git
+
+      - name: Run tests
+        working-directory: t
+        run: |
+          TEST_NGINX_BINARY=/usr/sbin/nginx TEST_NGINX_VERBOSE=1 \
+          TEST_NGINX_GLOBALS="load_module /etc/nginx/modules/ngx_http_js_module-debug.so; mgmt {license_token $RUNNER_TEMP/lic;}" \
+          prove -I../nginx-tests/lib -I./lib -v .
