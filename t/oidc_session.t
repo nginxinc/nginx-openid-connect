@@ -60,7 +60,7 @@ $t->write_file('openid_connect.server_conf', slurp("$root/openid_connect.server_
 
 ###############################################################################
 
-my $conf = <<'EOF';
+$t->write_file_expand('nginx.conf', <<'EOF');
 %%TEST_GLOBALS%%
 
 daemon off;
@@ -71,13 +71,41 @@ events {
 http {
     %%TEST_GLOBALS_HTTP%%
 
-    proxy_cache_path jwk levels=1 keys_zone=jwk:64k max_size=1m;
+    proxy_cache_path jwk levels=1 keys_zone=jwk:32k max_size=1m;
 
-    keyval_zone zone=oidc_id_tokens:1M     state=oidc_id_tokens.json     timeout=1h;
-    keyval_zone zone=oidc_access_tokens:1M state=oidc_access_tokens.json timeout=1h;
-    keyval_zone zone=refresh_tokens:1M     state=refresh_tokens.json     timeout=8h;
-    keyval_zone zone=oidc_sids:1M          state=oidc_sids.json          timeout=8h;
-    keyval_zone zone=oidc_pkce:128k timeout=90s;
+    keyval_zone zone=oidc_authz_endpoint:32k;
+    keyval_zone zone=oidc_authz_extra_args:32k;
+    keyval_zone zone=oidc_token_endpoint:32k;
+    keyval_zone zone=oidc_jwt_keyfile:32k;
+    keyval_zone zone=oidc_end_session_endpoint:32k;
+    keyval_zone zone=oidc_client:32k;
+    keyval_zone zone=oidc_pkce_enable:32k;
+    keyval_zone zone=oidc_client_secret:32k;
+    keyval_zone zone=oidc_client_auth_method:32k;
+    keyval_zone zone=oidc_scopes:32k;
+    keyval_zone zone=oidc_logout_redirect:32k;
+    keyval_zone zone=oidc_hmac_key:32k;
+    keyval_zone zone=zone_sync_leeway:32k;
+
+    keyval $host $oidc_authz_endpoint        zone=oidc_authz_endpoint;
+    keyval $host $oidc_authz_extra_args      zone=oidc_authz_extra_args;
+    keyval $host $oidc_token_endpoint        zone=oidc_token_endpoint;
+    keyval $host $oidc_jwt_keyfile           zone=oidc_jwt_keyfile;
+    keyval $host $oidc_end_session_endpoint  zone=oidc_end_session_endpoint;
+    keyval $host $oidc_client                zone=oidc_client;
+    keyval $host $oidc_pkce_enable           zone=oidc_pkce_enable;
+    keyval $host $oidc_client_secret         zone=oidc_client_secret;
+    keyval $host $oidc_client_auth_method    zone=oidc_client_auth_method;
+    keyval $host $oidc_scopes                zone=oidc_scopes;
+    keyval $host $oidc_logout_redirect       zone=oidc_logout_redirect;
+    keyval $host $oidc_hmac_key              zone=oidc_hmac_key;
+    keyval $host $zone_sync_leeway           zone=zone_sync_leeway;
+
+    keyval_zone zone=oidc_id_tokens:32k;
+    keyval_zone zone=oidc_access_tokens:32k;
+    keyval_zone zone=refresh_tokens:32k;
+    keyval_zone zone=oidc_sids:32k;
+    keyval_zone zone=oidc_pkce:32k;
 
     keyval $cookie_auth_token $session_jwt     zone=oidc_id_tokens;
     keyval $cookie_auth_token $access_token    zone=oidc_access_tokens;
@@ -115,21 +143,6 @@ http {
 
         auth_jwt_key_request /_jwks_uri;
 
-        set $oidc_authz_endpoint "http://127.0.0.1:%%IDP_PORT%%/auth";
-        set $oidc_authz_extra_args "";
-        set $oidc_token_endpoint "http://127.0.0.1:%%IDP_PORT%%/token";
-        set $oidc_jwt_keyfile "http://127.0.0.1:%%IDP_PORT%%/certs";
-        set $oidc_end_session_endpoint "";
-
-        set $oidc_client "%%CLIENT_ID%%";
-        set $oidc_client_secret "test-client-secret";
-        set $oidc_client_auth_method "client_secret_post";
-        set $oidc_scopes "openid";
-        set $oidc_hmac_key "test-hmac-key";
-        set $oidc_pkce_enable 0;
-
-        set $zone_sync_leeway 0;
-
         include openid_connect.server_conf;
 
         location = / {
@@ -155,12 +168,6 @@ http {
 }
 EOF
 
-$conf =~ s/%%TESTDIR%%/$d/g;
-$conf =~ s/%%IDP_PORT%%/$idp_port/g;
-$conf =~ s/%%CLIENT_ID%%/$client_id/g;
-
-$t->write_file_expand('nginx.conf', $conf);
-
 $Test::Nginx::OIDC::port = $idp_port;
 $t->run_daemon(\&idp_daemon, $issuer, $client_id, $jwt_secret)
     ->waitforsocket('127.0.0.1:' . $idp_port);
@@ -168,6 +175,23 @@ $t->run_daemon(\&idp_daemon, $issuer, $client_id, $jwt_secret)
 $t->run();
 
 my $api_version = (sort { $a <=> $b } @{ api('/api/') })[-1];
+
+# Set the init OIDC config values via the API.
+set_conf({
+    oidc_authz_endpoint        => "http://127.0.0.1:$idp_port/auth",
+    oidc_authz_extra_args      => "",
+    oidc_token_endpoint        => "http://127.0.0.1:$idp_port/token",
+    oidc_jwt_keyfile           => "http://127.0.0.1:$idp_port/certs",
+    oidc_end_session_endpoint  => "",
+    oidc_client                => $client_id,
+    oidc_client_secret         => "test-client-secret",
+    oidc_client_auth_method    => "client_secret_post",
+    oidc_scopes                => "openid",
+    oidc_logout_redirect       => "/_logout",
+    oidc_hmac_key              => "test-hmac-key",
+    oidc_pkce_enable           => "0",
+    zone_sync_leeway           => "0",
+}, 1);
 
 ###############################################################################
 
@@ -199,7 +223,7 @@ like($flow->{location}, qr!^http://localhost(?::\d+)?/(?:\?.*)?$!,
 );
 
 my $cookie = $flow->{cookie};
-my $r = http_get_auth('/', $cookie);
+my $r = http_get('/', $cookie);
 my $st = get_state();
 
 like($r, qr/FOO/, 'access granted');
@@ -217,19 +241,21 @@ is(get_kv('refresh_tokens')->{$session_id}, $st->{refresh_token},
 is(get_kv('oidc_sids')->{sid1}, $session_id, 'kv sid to session id');
 is_deeply(get_kv('oidc_pkce'), {}, 'kv pkce is empty with pkce disabled');
 
-del_kv('/http/keyvals/oidc_id_tokens');
-like(http_get_auth('/', $cookie), qr/FOO/, 'session refreshed');
+patch_kv('oidc_id_tokens', { $session_id => undef });
+like(http_get('/', $cookie), qr/FOO/, 'session refreshed');
 
 # ###############################################################################
 
-sub http_get_auth {
+sub http_get {
     my ($url, $cookie) = @_;
-    return http(<<EOF);
-GET $url HTTP/1.0
-Host: localhost
-Cookie: $cookie
+    my @headers = (
+        "GET $url HTTP/1.0",
+        "Host: localhost",
+    );
 
-EOF
+    push @headers, "Cookie: $cookie" if defined $cookie;
+
+    return http(join("\n", @headers) . "\n\n");
 }
 
 sub api {
@@ -244,14 +270,53 @@ sub get_kv {
     return JSON::PP::decode_json($1);
 }
 
-sub del_kv {
-    my ($url) = @_;
+sub post_kv {
+    my ($zone, $data) = @_;
+    my $body = JSON::PP::encode_json($data);
+    my $len  = length($body);
+
     return http(<<EOF);
-DELETE /api/$api_version$url HTTP/1.1
+POST /api/$api_version/http/keyvals/$zone HTTP/1.1
 Host: localhost
 Connection: close
+Content-Type: application/json
+Content-Length: $len
 
+$body
 EOF
+}
+
+sub patch_kv {
+    my ($zone, $data) = @_;
+    my $body = JSON::PP::encode_json($data);
+    my $len  = length($body);
+
+    return http(<<EOF);
+PATCH /api/$api_version/http/keyvals/$zone HTTP/1.1
+Host: localhost
+Connection: close
+Content-Type: application/json
+Content-Length: $len
+
+$body
+EOF
+}
+
+sub set_conf {
+    my ($json, $post, $host) = @_;
+    $host //= 'localhost';
+
+    for my $zone (keys %$json) {
+        my $value = $json->{$zone};
+
+        my $body = { $host => $value };
+
+        if ($post) {
+            post_kv("$zone", $body);
+        } else {
+            patch_kv("$zone", $body);
+        }
+    }
 }
 
 ###############################################################################
