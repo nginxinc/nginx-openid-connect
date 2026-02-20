@@ -18,7 +18,7 @@ use Socket qw/CRLF/;
 
 use Digest::SHA qw/hmac_sha256/;
 use JSON::PP qw/decode_json encode_json/;
-use MIME::Base64 qw/encode_base64/;
+use MIME::Base64 qw/encode_base64 decode_base64/;
 use Test::Nginx qw/http/;
 
 use Exporter 'import';
@@ -40,7 +40,7 @@ sub parse_response {
     my ($raw) = @_;
     return unless defined $raw && length $raw;
 
-    my %r = (res => $raw);
+    my %r = (raw => $raw);
 
     if ($raw =~ /^HTTP\/\d+\.\d+\s+(\d{3})/) {
         $r{status} = $1;
@@ -51,8 +51,9 @@ sub parse_response {
         push @{ $r{headers}{$h} }, $v;
         if ($h eq 'location') {
             $r{location} = $v;
-        } elsif ($h eq 'set-cookie' && !exists $r{cookie}) {
-            $r{cookie} = $v;
+        } elsif ($h eq 'set-cookie') {
+            $r{cookie} = $v if !exists $r{cookie};
+            $r{session_id} = $1 if $v =~ /(?:^|;\s*)auth_token=([^;]+)/;
         }
     }
 
@@ -181,6 +182,10 @@ sub idp_daemon {
         code_seq      => 0,
         codes         => {},
         token_hits    => 0,
+        token_status  => '',
+        auth_method  => '',
+        auth_secret  => '',
+        code_verifier => '',
         id_token      => undef,
         access_token  => undef,
         refresh_token => undef,
@@ -336,8 +341,57 @@ sub _handle_token {
     my ($client, $body, $state) = @_;
 
     $state->{token_hits}++;
-
     my %p = _parse_params($body);
+
+    my $req = $state->{requests}{$client} // '';
+    my $auth = '';
+    $auth = $1 if $req =~ /^Authorization:\s*([^\r\n]+)/mi;
+
+    $state->{auth_method} = '';
+    $state->{auth_secret} = '';
+    $state->{code_verifier} = $p{code_verifier} // '';
+
+    if ($auth =~ /^Basic\s+(\S+)/i) {
+        my $decoded = decode_base64($1);
+        my (undef, $secret) = split /:/, $decoded, 2;
+        $state->{auth_method} = 'basic';
+        $state->{auth_secret} = $secret // '';
+    } elsif (exists $p{client_secret}) {
+        $state->{auth_method} = 'post';
+        $state->{auth_secret} = $p{client_secret} // '';
+    }
+
+    my $token_status = $state->{token_status} // '';
+    if (length $token_status) {
+        if ($token_status eq '401') {
+            # Return 400 with json body without "error" field.
+            _send_response($client, 400, encode_json({ detail => 'bad code' }), {
+                'Content-Type' => 'application/json',
+                'Connection'   => 'close',
+            });
+        } elsif ($token_status eq '201') {
+            # Return 200 with json body containing tokenset.error.
+            _send_response($client, 200, encode_json({
+                error             => 'invalid_client',
+                error_description => 'nope',
+            }), {
+                'Content-Type' => 'application/json',
+                'Connection'   => 'close',
+            });
+        } elsif ($token_status eq '202') {
+            # Return 200 with non-json body.
+            _send_response($client, 200, 'not json', {
+                'Content-Type' => 'text/plain',
+                'Connection'   => 'close',
+            });
+        } else {
+            _send_response($client, int($token_status), 'not json', {
+                'Connection' => 'close',
+            });
+        }
+        return;
+    }
+
     my $grant_type = $p{grant_type} // '';
 
     if ($grant_type eq 'authorization_code') {
@@ -419,13 +473,16 @@ sub _handle_token {
         my $id_token = _encode_jwt_hs256(\%claims, $state->{jwt_secret}, $state->{jwt_kid});
 
         my $access_token = _random_token();
+        my $refresh_token = _random_token();
         $state->{id_token} = $id_token;
         $state->{access_token} = $access_token;
+        $state->{refresh_token} = $refresh_token;
 
         my $resp = encode_json({
             token_type    => 'Bearer',
             expires_in    => 3600,
             access_token  => $access_token,
+            refresh_token => $refresh_token,
             id_token      => $id_token,
         });
 
@@ -478,6 +535,9 @@ sub _send_response {
         302 => 'Found',
         400 => 'Bad Request',
         404 => 'Not Found',
+        500 => 'Internal Server Error',
+        502 => 'Bad Gateway',
+        504 => 'Gateway Timeout',
     }->{$status} || 'OK';
 
     print $client "HTTP/1.1 $status $status_text" . CRLF;
