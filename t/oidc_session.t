@@ -40,7 +40,7 @@ my $client_id  = 'test-client';
 my $jwt_secret = 'test-jwt-secret';
 my $issuer     = "http://127.0.0.1:$idp_port";
 
-my $t = Test::Nginx->new()->has(qw/http/)->plan(125);
+my $t = Test::Nginx->new()->has(qw/http/)->plan(126);
 my $d = $t->testdir();
 
 ###################################################################################################
@@ -144,6 +144,7 @@ http {
     server {
         listen 127.0.0.1:8080;
         server_name localhost;
+        client_max_body_size 4k;
 
         auth_jwt_key_request /_jwks_uri;
 
@@ -156,6 +157,14 @@ http {
             add_header X-Test-AT "$access_token";
             add_header X-Test-ID "$session_jwt";
             add_header X-Test-ISS "$jwt_claim_iss";
+
+            proxy_pass http://127.0.0.1:8081;
+        }
+
+        location = /upload {
+            client_max_body_size 64k;
+            auth_jwt "" token=$session_jwt;
+            error_page 401 = @do_oidc_flow;
 
             proxy_pass http://127.0.0.1:8081;
         }
@@ -640,6 +649,14 @@ for my $key (qw/refId message clientIp host method uri httpVersion/) {
 like($json_error->{message} // '', qr/OIDC expected authorization code but received: \/_codexch/,
     'oidc_error json has expected message');
 
+### large_post_body_during_jwks_fetch
+
+($cookie, $sid) = fresh_session('/');
+my $large_body = 'A' x 8192;
+$r = post('/upload', $large_body, $cookie);
+
+like($r, qr/FOO/, 'large POST body during JWKS fetch reaches backend');
+
 ###################################################################################################
 
 sub get {
@@ -652,6 +669,20 @@ sub get {
     push @headers, "Cookie: $cookie" if defined $cookie;
 
     return http(join("\n", @headers) . "\n\n");
+}
+
+sub post {
+    my ($url, $body, $cookie) = @_;
+    my $len = length($body);
+    my @headers = (
+        "POST $url HTTP/1.0",
+        "Host: localhost",
+        "Content-Length: $len",
+    );
+
+    push @headers, "Cookie: $cookie" if defined $cookie;
+
+    return http(join("\n", @headers) . "\n\n" . $body);
 }
 
 sub run_oidc_flow {
