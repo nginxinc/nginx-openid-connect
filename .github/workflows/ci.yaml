@@ -7,6 +7,9 @@ on:
 
 jobs:
   test-njs-oidc:
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,15 +21,24 @@ jobs:
           sudo apt-get install -y apt-transport-https lsb-release apt-utils ubuntu-keyring gnupg2 \
           ca-certificates wget mercurial
 
+      - name: Get secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{secrets.NGINX_PLUS_CLIENT_ID}}
+          tenant-id: ${{secrets.NGINX_PLUS_TENANT_ID}}
+          vault-name: ${{secrets.NGINX_COMMON_VAULT_NAME}}
+          secret-names: "nginx-pkg-certificate, nginx-pkg-key, nginx-pkg-jwt"
+          env-names: "NGINX_REPO_CRT, NGINX_REPO_KEY, NGINX_LIC"
+
       - name: Prepare keys and certificates
         run: |
           sudo mkdir /etc/ssl/nginx
-          echo '${{ secrets.NGINX_REPO_CRT }}' | sudo tee /etc/ssl/nginx/nginx-repo.crt > /dev/null
-          echo '${{ secrets.NGINX_REPO_KEY }}' | sudo tee /etc/ssl/nginx/nginx-repo.key > /dev/null
+          echo '${{ env.NGINX_REPO_CRT }}' | sudo tee /etc/ssl/nginx/nginx-repo.crt > /dev/null
+          echo '${{ env.NGINX_REPO_KEY }}' | sudo tee /etc/ssl/nginx/nginx-repo.key > /dev/null
 
       - name: Prepare NGINX Plus license token
         run: |
-          echo '${{ secrets.NGINX_LIC }}' | tee $RUNNER_TEMP/lic > /dev/null
+          echo '${{ env.NGINX_LIC }}' | tee $RUNNER_TEMP/lic > /dev/null
 
       - name: Import NGINX Plus signing key
         run: |
