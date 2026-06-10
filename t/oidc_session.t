@@ -40,7 +40,7 @@ my $client_id  = 'test-client';
 my $jwt_secret = 'test-jwt-secret';
 my $issuer     = "http://127.0.0.1:$idp_port";
 
-my $t = Test::Nginx->new()->has(qw/http/)->plan(126);
+my $t = Test::Nginx->new()->has(qw/http/)->plan(127);
 my $d = $t->testdir();
 
 ###################################################################################################
@@ -284,7 +284,7 @@ isnt($access_after, $access_before, 'access token rotated');
 my $refresh_after = get_kv('refresh_tokens')->{$sid};
 isnt($refresh_after, $refresh_before, 'refresh token rotated');
 
-### refresh_error_400_json (TODO: check redir to orig uri)
+### refresh_error_400_json
 
 ($cookie, $sid) = fresh_session('/');
 patch_kv('oidc_id_tokens', { $sid => undef });
@@ -292,11 +292,12 @@ patch_kv('refresh_tokens', { $sid => 'foo' });
 $flow = parse_response(get('/?foo=bar', $cookie));
 
 is($flow->{status}, 302, 'refresh 400 json error returns 302');
-like($flow->{raw}, qr/\r?\nLocation:\s*\r?\n/s, 'refresh 400 json redirect');
+like($flow->{raw}, qr{\r?\nLocation:[^\r\n]*/\?foo=bar\r?\n}s,
+    'refresh 400 json redirect to orig uri');
 like(get_logs(), qr/refresh\s+failure.*invalid_grant.*invalid refresh_token/s,
     'refresh 400 json error log');
 
-### refresh_error_none_400 (TODO: check redir to orig uri)
+### refresh_error_none_400
 
 ($cookie, $sid) = fresh_session('/');
 patch_kv('oidc_id_tokens', { $sid => undef });
@@ -305,6 +306,8 @@ $flow = parse_response(get('/?foo=baz', $cookie));
 set_state(token_status => '');
 
 is($flow->{status}, 302, 'refresh 500 error returns 302');
+like($flow->{raw}, qr{\r?\nLocation:[^\r\n]*/\?foo=baz\r?\n}s,
+    'refresh 500 redirect to orig uri');
 like(get_logs(), qr/refresh\s+failure.*500/s, 'refresh status 500 error log');
 
 ### refresh_200_json_without_id_token
@@ -327,7 +330,8 @@ $flow = parse_response(get('/?foo=aud', $cookie));
 set_state(client_id => $client_id);
 
 is($flow->{status}, 302, 'refresh with invalid id_token claims returns 302');
-like($flow->{raw}, qr/\r?\nLocation:\s*\r?\n/s, 'refresh validate failure redirect');
+like($flow->{raw}, qr{\r?\nLocation:[^\r\n]*/\?foo=aud\r?\n}s,
+    'refresh validate failure redirect to orig uri');
 like(get_logs(), qr/aud\s+claim.*does\s+not\s+include/s, 'refresh validate error log');
 is(get_kv('refresh_tokens')->{$sid}, '-', 'refresh token kv reset');
 
