@@ -75,5 +75,5 @@ jobs:
         working-directory: t
         run: |
           TEST_NGINX_BINARY=/usr/sbin/nginx TEST_NGINX_VERBOSE=1 \
-          TEST_NGINX_GLOBALS="load_module /etc/nginx/modules/ngx_http_js_module-debug.so; mgmt {license_token $RUNNER_TEMP/lic;}" \
+          TEST_NGINX_GLOBALS="load_module /etc/nginx/modules/ngx_http_js_module-debug.so; mgmt {license_token $RUNNER_TEMP/lic; state_path $RUNNER_TEMP;}" \
           prove -I../nginx-tests/lib -I./lib -v .
