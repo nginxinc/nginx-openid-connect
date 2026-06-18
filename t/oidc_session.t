@@ -349,7 +349,7 @@ $flow = run_oidc_flow('/');
 like($flow->{cookie}, qr/^auth_token=[^;]+;/, 'pkce auth success');
 
 $s = get_state();
-like($s->{code_verifier}, qr/^[0-9a-f]{64}$/i, 'pkce code_verifier sent to token request');
+like($s->{code_verifier}, qr/^[A-Za-z0-9_-]{43}$/, 'pkce code_verifier sent to token request');
 is($s->{auth_method}, '', 'pkce token request no client auth');
 
 set_conf({ oidc_pkce_enable => "0" });
